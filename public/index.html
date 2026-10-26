@@ -148,6 +148,9 @@
   .drop-zone.over { border-color:var(--accent); color:var(--text); }
   footer { width:calc(100% - 32px); max-width:1088px; margin:0 auto; padding:16px 0 24px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
   footer a { color:var(--dim); }
+  .lang-switch { margin-left:auto; }
+  .lang-switch button { background:none; border:none; padding:0; color:var(--dim); font:inherit; cursor:pointer; text-decoration:underline; }
+  .lang-switch button.on { color:var(--text); text-decoration:none; font-weight:600; }
   footer a:hover { color:var(--text); }
 
   /* setup guide */
@@ -383,9 +386,252 @@
   <a href="https://github.com/PeonPing/peon-ping" target="_blank" rel="noopener">peon-ping ↗</a>
   <a href="https://openpeon.com/packs" target="_blank" rel="noopener">Sound packs ↗</a>
   <a href="#/welcome">Setup guide</a>
+  <span class="lang-switch"><button type="button" data-lang="en">English</button> · <button type="button" data-lang="uk">Українська</button></span>
 </footer>
 <div id="toast" role="status"></div>
 
+<script>
+/* ---------- language ----------
+   English is the source text and the key. UK holds the Ukrainian. tr() swaps exact strings (el() calls it for
+   textContent, placeholder, title and plain text children); t() fills {placeholders} in templates.
+   Anything missing simply stays English. */
+const UK = {
+  // navigation and header
+  'My packs': 'Мої пакети', 'Where': 'Де', 'Quiet': 'Тиша', 'Notifications': 'Сповіщення', 'Get packs': 'Каталог', 'Health': 'Діагностика',
+  'Sounds on': 'Звук увімкнено', 'Muted': 'Звук вимкнено', 'Volume': 'Гучність', 'Mute for a while': 'Вимкнути на час',
+  'Mute for 30 min': 'Вимкнути на 30 хв', 'Mute for 1 hour': 'Вимкнути на 1 годину', 'Mute for 2 hours': 'Вимкнути на 2 години', 'Mute until tomorrow': 'Вимкнути до завтра',
+  'Mute or unmute every peon-ping sound': 'Вимкнути або ввімкнути всі звуки peon-ping',
+  'Loading…': 'Завантаження…', 'Something went wrong': 'Щось пішло не так', 'Request failed': 'Запит не вдався', 'Saved': 'Збережено',
+  'GitHub ↗': 'GitHub ↗', 'Report a problem ↗': 'Повідомити про проблему ↗', 'peon-ping ↗': 'peon-ping ↗', 'Sound packs ↗': 'Галерея пакетів ↗', 'Setup guide': 'Майстер налаштування',
+  'Something needs attention': 'Щось потребує уваги',
+  // events
+  'Session start': 'Початок сесії', 'A new agent session opens': 'Агент починає нову сесію',
+  'Prompt received': 'Запит отримано', 'The agent starts working on your prompt': 'Агент береться за ваш запит',
+  'Task done': 'Задачу виконано', 'The agent finished and is waiting for you': 'Агент закінчив і чекає на вас',
+  'Error': 'Помилка', 'A tool call failed': 'Виклик інструмента завершився помилкою',
+  'Needs your input': 'Потрібна ваша відповідь', 'Permission request or a question for you': 'Запит дозволу або питання до вас',
+  'Limit reached': 'Ліміт вичерпано', 'Usage or context limit hit': 'Вичерпано ліміт використання або контексту',
+  'Too many prompts': 'Забагато запитів', 'You sent several prompts in a row': 'Ви надіслали кілька запитів поспіль',
+  'Session end': 'Кінець сесії', 'Sub-agent done': 'Субагент закінчив', 'Sub-agent started': 'Субагент почав', 'Tool call': 'Виклик інструмента', 'Compacting': 'Стиснення контексту',
+  // packs
+  'Default': 'За замовчуванням', 'Yours': 'Ваш', 'Your pack': 'Ваш пакет', 'Not used by any tool': 'Не використовується жодним інструментом',
+  'Edit sounds': 'Редагувати звуки', 'Make default': 'Зробити основним', 'Play a sample': 'Прослухати приклад', 'Play': 'Грати', 'Listen': 'Прослухати',
+  'Get more packs': 'Більше пакетів', '370+ in the registry': '370+ у каталозі', 'Import pack…': 'Імпортувати пакет…',
+  'Add a pack someone shared with you (.peonpack.zip)': 'Додати пакет, яким з вами поділились (.peonpack.zip)',
+  'Pick a .peonpack.zip file': 'Виберіть файл .peonpack.zip', 'Pack files are limited to 50 MB': 'Файл пакета — до 50 МБ', 'Import failed': 'Імпорт не вдався',
+  'Create your own pack': 'Створити свій пакет', 'Mix sounds from other packs or upload yours': 'Збирайте звуки з інших пакетів або завантажуйте свої',
+  'e.g. Team voices': 'напр. Голоси команди', 'Empty pack': 'Порожній пакет', 'Create': 'Створити', 'New pack': 'Новий пакет', 'Name': 'Назва', 'Id (folder name)': 'Id (назва папки)', 'Start from': 'Почати з', 'Cancel': 'Скасувати',
+  'Nothing to play': 'Нічого програвати', 'Could not play this sound': 'Не вдалося програти звук',
+  // pack editor
+  '← My packs': '← Мої пакети', 'Export': 'Експорт', 'Save this pack as one file to share': 'Зберегти пакет одним файлом, щоб поділитися',
+  'Make it your own': 'Зробити своїм', 'Copy this pack so you can add, upload, rename and delete sounds': 'Скопіювати пакет, щоб додавати, завантажувати, перейменовувати й видаляти звуки',
+  'Find a sound…': 'Знайти звук…', 'All sounds': 'Усі звуки', 'Enabled only': 'Лише увімкнені', 'Disabled only': 'Лише вимкнені',
+  'Tip: drag sounds to reorder them or move them to another event; ⇄ moves without dragging': 'Порада: перетягуйте звуки, щоб змінити порядок або перенести в іншу подію; ⇄ переносить без перетягування',
+  'Turn all off': 'Вимкнути всі', 'Turn all on': 'Увімкнути всі', '＋ Add sound': '＋ Додати звук',
+  'All sounds are off — this event will be silent.': 'Усі звуки вимкнені — ця подія буде беззвучною.',
+  'No sounds yet. Use ＋ Add sound, or drag one here.': 'Поки немає звуків. Натисніть ＋ Додати звук або перетягніть звук сюди.',
+  'No sounds yet. Drag one here or use ⇄ on any sound.': 'Поки немає звуків. Перетягніть сюди звук або скористайтеся ⇄.',
+  'No sounds match.': 'Немає збігів.', 'This event is off for every pack, so none of these sounds will play.': 'Ця подія вимкнена для всіх пакетів, тож жоден із цих звуків не зазвучить.',
+  'Moved here by you': 'Ви перенесли сюди', 'file missing': 'файлу немає', 'Not downloaded. Reinstall the pack to fetch it.': 'Не завантажено. Перевстановіть пакет, щоб докачати.',
+  'Move to another event': 'Перенести в іншу подію', 'Drag to another event': 'Перетягніть в іншу подію', 'Rename': 'Перейменувати', 'Name for this sound': 'Назва звуку', 'Renamed': 'Перейменовано', 'Remove from this event': 'Прибрати з цієї події',
+  'From a pack': 'З пакета', 'Upload a file': 'Завантажити файл', 'Record': 'Запис', 'Added': 'Додано', 'No sounds here.': 'Тут немає звуків.', 'Install another pack first.': 'Спершу встановіть ще один пакет.', 'Remove': 'Видалити',
+  'Drop audio files here or click to choose — WAV, MP3, OGG, M4A or AIFF, up to 5 MB each': 'Перетягніть аудіофайли сюди або натисніть, щоб вибрати — WAV, MP3, OGG, M4A чи AIFF, до 5 МБ кожен',
+  'Trim silence and even out volume (saved as WAV)': 'Обрізати тишу й вирівняти гучність (зберігається як WAV)', 'Trim silence and even out volume': 'Обрізати тишу й вирівняти гучність',
+  'Keep sounds under 5 MB': 'Звук має бути до 5 МБ', 'Upload failed': 'Завантаження не вдалося',
+  'Name, e.g. “Done, boss!”': 'Назва, напр. «Готово, шефе!»', '■ Stop': '■ Стоп', '● Record': '● Записати', 'Record again': 'Записати ще раз', 'My recording': 'Мій запис', 'Processing…': 'Обробка…',
+  'This browser cannot record audio': 'Цей браузер не вміє записувати звук', 'Microphone access was blocked. Allow it in the browser’s site settings.': 'Доступ до мікрофона заблоковано. Дозвольте його в налаштуваннях сайту в браузері.',
+  'No microphone found': 'Мікрофон не знайдено', 'Could not read the recording': 'Не вдалося прочитати запис',
+  // where
+  'Which pack plays where': 'Який пакет де грає', 'Give each coding tool and each project its own voice.': 'Дайте кожному інструменту й кожному проєкту свій голос.',
+  'Tools': 'Інструменти', 'A green dot means peon-ping has heard from that tool recently.': 'Зелена крапка означає, що peon-ping нещодавно отримував події від цього інструмента.',
+  'Default pack': 'Пакет за замовчуванням', 'Used by every tool below set to “Default”': 'Для всіх інструментів нижче з варіантом «За замовчуванням»',
+  'peon-ping has received events from this tool': 'peon-ping отримував події від цього інструмента', 'peon-ping has heard from this tool': 'peon-ping отримував події від цього інструмента',
+  'Add tool': 'Додати', 'Another tool': 'Інший інструмент', 'Folders': 'Папки', 'Silent folders': 'Тихі папки',
+  'A pack for one project, wherever you open it. A folder covers everything inside it; * matches any name. Folder rules win over tool picks; the first matching rule is used.': 'Пакет для окремого проєкту, хоч би де ви його відкрили. Папка охоплює все всередині; * означає будь-яку назву. Правила для папок мають перевагу над вибором для інструментів; спрацьовує перше відповідне правило.',
+  'No sounds and no pop-ups for agents working in these folders.': 'Жодних звуків і банерів для агентів, що працюють у цих папках.',
+  'No folder rules yet.': 'Правил для папок поки немає.', 'Folder, e.g. ~/work/api or ~/work/*': 'Папка, напр. ~/work/api або ~/work/*', 'Add': 'Додати',
+  'Nothing silenced.': 'Тихих папок немає.', 'Folder to keep quiet, e.g. ~/Downloads': 'Папка, де має бути тихо, напр. ~/Downloads', 'Silence': 'Тиша тут', 'Unsilence': 'Повернути звук',
+  'Order peon-ping uses: a pack picked for one chat (/peon-ping-use) → folders → tools → rotation → default pack.': 'Порядок у peon-ping: пакет, вибраний для чату (/peon-ping-use) → папки → інструменти → ротація → пакет за замовчуванням.',
+  // quiet
+  'When peon-ping should keep it down. Mute everything at once with the switch at the top.': 'Коли peon-ping має мовчати. Вимкнути все одразу можна перемикачем угорі.',
+  'During calls': 'Під час дзвінків', 'Stay silent while a call is using your microphone: Zoom, Meet, Teams, Slack huddles, FaceTime.': 'Мовчати, поки дзвінок використовує мікрофон: Zoom, Meet, Teams, Slack, FaceTime.',
+  'In Focus / Do Not Disturb': 'У режимі Focus / Не турбувати', 'Respect the macOS Focus modes.': 'Зважати на режими Focus у macOS.', 'When a Focus is on:': 'Коли ввімкнено Focus:',
+  'Mute sounds and pop-ups': 'Вимикати звуки й банери', 'Mute sounds only': 'Лише звуки', 'Hide pop-ups only': 'Лише банери', 'Full Disk Access': 'Повний доступ до диска',
+  'macOS keeps Focus state in a protected file, so the app your agent runs in (Terminal, iTerm, Cursor, VS Code…) needs ': 'macOS зберігає стан Focus у захищеному файлі, тому програмі, в якій працює агент (Terminal, iTerm, Cursor, VS Code…), потрібен ',
+  '. Without it peon-ping cannot see Focus and simply keeps playing.': '. Без нього peon-ping не бачить Focus і просто грає далі.',
+  'Only with headphones': 'Лише в навушниках', 'Play sounds only when headphones or AirPods are connected — nothing from the laptop speakers.': 'Грати лише коли підключені навушники чи AirPods — нічого з динаміків ноутбука.',
+  'Not when I’m watching': 'Не коли я дивлюся', 'Skip the sound when the terminal tab the agent runs in is already in front of you.': 'Пропускати звук, коли вкладка терміналу з агентом і так перед вами.',
+  'Want silence in one project only? Use ': 'Тиша потрібна лише в одному проєкті? Скористайтеся ', 'Where → Silent folders': 'Де → Тихі папки',
+  // browse
+  'Search by name, game, tag… e.g. memes, starcraft': 'Пошук за назвою, грою, тегом… напр. меми, starcraft', 'All packs': 'Усі пакети', 'Not installed': 'Не встановлені', 'Installed': 'Встановлені',
+  'Other…': 'Інші…', 'All languages': 'Усі мови', 'Show more': 'Показати ще', 'Install': 'Встановити', 'Use it…': 'Використати…', 'Install failed': 'Не вдалося встановити',
+  // notifications
+  'How peon-ping’s pop-ups look. Changes save as you go.': 'Як виглядають банери peon-ping. Зміни зберігаються одразу.', 'Show pop-ups': 'Показувати банери', 'Send test': 'Надіслати тест', 'Test sent': 'Тест надіслано',
+  'Pop-ups on': 'Банери ввімкнено', 'Pop-ups off': 'Банери вимкнено', 'Look': 'Вигляд', 'Style': 'Стиль', 'Theme': 'Тема', 'Position': 'Положення', 'Behaviour': 'Поведінка',
+  'Peon banner': 'Банер peon-ping', 'macOS notification': 'Сповіщення macOS', 'Classic': 'Класична', 'Glass': 'Скло', 'Sakura': 'Сакура', 'Jarvis': 'Jarvis',
+  'Built in': 'Вбудована', 'Downloaded from peon-ping the first time you pick it': 'Завантажується з peon-ping, коли вибираєте вперше', 'Where the banner appears': 'Де з’являється банер',
+  'macOS places system notifications itself; theme and position apply to Peon banners only.': 'Системні сповіщення macOS розміщує сама; тема й положення стосуються лише банерів peon-ping.',
+  'Stays on screen': 'Тривалість показу', 'Until I click it': 'Доки не клацну', 'All screens': 'Усі екрани', 'Show the banner on every display': 'Показувати банер на кожному моніторі',
+  'Close button': 'Кнопка закриття', 'Stack banners': 'Накопичувати банери', 'Keep earlier banners from the same session': 'Залишати попередні банери тієї ж сесії',
+  'Stop sound on close': 'Зупиняти звук при закритті', 'Clicking or closing a banner cuts its sound short. Needs PeonBar running.': 'Клік чи закриття банера обриває його звук. Потрібен запущений PeonBar.',
+  'Closing a banner stops its sound': 'Закриття банера зупиняє звук', 'Sounds play to the end': 'Звуки грають до кінця',
+  'Title': 'Заголовок', 'Label': 'Підпис', 'Project folder name (default)': 'Назва папки проєкту (за замовчуванням)', 'Add tool name': 'Додавати назву інструмента', 'e.g. “my-app - Claude Code”': 'напр. «my-app - Claude Code»',
+  'Messages': 'Тексти', 'Leave empty for peon-ping’s default text.': 'Залиште порожнім для стандартного тексту peon-ping.', 'Insert:': 'Вставити:',
+  'Needs permission': 'Потрібен дозвіл', 'Waiting for you': 'Чекає на вас', 'Question': 'Питання', 'Preview': 'Попередній перегляд',
+  'Pop-ups are off.': 'Банери вимкнено.', 'Tool errors only play a sound — peon-ping shows no pop-up for them. This template is used for phone notifications and spoken alerts.': 'Помилки інструментів лише звучать — банера для них peon-ping не показує. Цей шаблон використовується для сповіщень на телефон.',
+  'Real size, scaled to fit.': 'Реальний розмір, зменшений під екран.', 'macOS draws this one, so the exact look follows your system settings.': 'Його малює macOS, тож точний вигляд залежить від системних налаштувань.',
+  'The icon is your default pack’s.': 'Іконка — з пакета за замовчуванням.', '“Send test” shows the real thing.': '«Надіслати тест» покаже справжній.',
+  'peon-ping always shows “Question pending” on the banner; your Question template appears in macOS notifications and on your phone.': 'На банері peon-ping завжди пише «Question pending»; ваш шаблон «Питання» видно в сповіщеннях macOS і на телефоні.',
+  'click to focus': 'клацніть, щоб перейти', 'Refactored the login form': 'Переробив форму входу', 'All tests pass.': 'Усі тести проходять.',
+  // phone
+  'On your phone': 'На телефоні', 'A push when the agent finishes, needs permission or asks a question — handy when you step away. Not sent while sounds are muted.': 'Пуш, коли агент закінчив, просить дозволу чи має питання — зручно, коли ви відійшли. Не надсилається, поки звук вимкнено.',
+  'Service': 'Сервіс', 'Topic': 'Топік', 'Server (optional)': 'Сервер (необов’язково)', 'Access token (optional, for private servers)': 'Токен доступу (необов’язково, для приватних серверів)',
+  'Priority': 'Пріоритет', 'By event (default)': 'Залежно від події (за замовчуванням)', 'User key': 'Ключ користувача', 'App token': 'Токен застосунку', 'Bot token': 'Токен бота', 'Chat id': 'Id чату',
+  'Save and send a test': 'Зберегти й надіслати тест', 'Change…': 'Змінити…', 'More': 'Детальніше', 'Phone pushes on': 'Пуші ввімкнено', 'Phone pushes off': 'Пуші вимкнено', 'Test push sent': 'Тестовий пуш надіслано',
+  'Phone notifications': 'Сповіщення на телефон',
+  'Free, no account. Install the ntfy app (iOS/Android), tap +, and subscribe to the same topic. Anyone who knows the topic can read it, so keep it hard to guess.': 'Безкоштовно, без акаунта. Встановіть застосунок ntfy (iOS/Android), натисніть + і підпишіться на той самий топік. Хто знає топік, той може його читати, тож робіть його складним.',
+  'Paid app ($5 once). Your user key is on the Pushover dashboard; create an application there for the app token.': 'Платний застосунок (одноразово $5). Ключ користувача — на панелі Pushover; там же створіть застосунок, щоб отримати токен.',
+  'Create a bot with @BotFather to get its token, send the bot any message, then get your chat id from @userinfobot.': 'Створіть бота через @BotFather, щоб отримати токен, напишіть боту будь-що, а id чату дізнайтеся в @userinfobot.',
+  // setup guide
+  'Welcome to peon-ping editor': 'Ласкаво просимо до peon-ping editor', 'Pick a voice': 'Виберіть голос', 'This pack plays whenever an agent starts, finishes or needs you. Press ▶ to listen.': 'Цей пакет звучить, коли агент починає, закінчує чи потребує вас. Натисніть ▶, щоб послухати.',
+  'Want something else? ': 'Хочете щось інше? ', 'Browse 370+ packs': 'Перегляньте 370+ пакетів', ' — come back with “Setup guide” at the bottom.': ' — і поверніться сюди через «Майстер налаштування» внизу.',
+  'A different voice per tool?': 'Окремий голос для кожного інструмента?', 'Handy when Claude Code, Copilot and Cursor run side by side: you hear which one is done. Leave them on “same as default” if you like.': 'Зручно, коли Claude Code, Copilot і Cursor працюють паралельно: чути, хто саме закінчив. Можна залишити «як за замовчуванням».',
+  'When should it stay quiet?': 'Коли має бути тихо?', 'You can change these any time under Quiet.': 'Це можна змінити будь-коли у вкладці «Тиша».',
+  'Silent while Zoom, Meet, Teams or Slack is using the microphone.': 'Тихо, поки Zoom, Meet, Teams чи Slack використовують мікрофон.', 'Nothing from the laptop speakers — good for open offices.': 'Нічого з динаміків ноутбука — добре для open space.',
+  'Skip the sound when the agent’s tab is already in front of you.': 'Без звуку, коли вкладка агента і так перед вами.',
+  'Need silence right now? Use ⏱ at the top or PeonBar → Mute for…, or press ⌃⌥⌘M anywhere (macOS).': 'Потрібна тиша просто зараз? Скористайтеся ⏱ угорі чи PeonBar → Mute for… або натисніть ⌃⌥⌘M будь-де (macOS).',
+  'Almost there': 'Майже готово', 'All set': 'Усе готово', 'peon-ping is wired up. Play the test sound to check your speakers.': 'peon-ping підключено. Програйте тестовий звук, щоб перевірити динаміки.',
+  'Open Health': 'Відкрити діагностику', 'Skip setup': 'Пропустити', 'Back': 'Назад', 'Next': 'Далі', 'Finish': 'Готово',
+  // health
+  'Everything peon-ping needs to make a sound, checked in one go.': 'Усе, що потрібно peon-ping, щоб звучати, — перевірено за раз.', 'Play test sound': 'Тестовий звук', 'Check again': 'Перевірити ще раз',
+  'Plays a line from the default pack, even when muted': 'Програє звук із пакета за замовчуванням, навіть коли звук вимкнено', 'Listen…': 'Слухайте…',
+  'Everything looks good': 'Усе гаразд', 'Most have a fix button. Still silent after that? Play the test sound.': 'Для більшості є кнопка виправлення. Досі тихо? Програйте тестовий звук.',
+  'If you still hear nothing, play the test sound to check your speakers.': 'Якщо досі нічого не чути, програйте тестовий звук, щоб перевірити динаміки.', 'Copy': 'Копіювати', 'Copied': 'Скопійовано',
+  'Recent events': 'Останні події', 'Keep a history': 'Вести історію', 'History on — new events show up here': 'Історію ввімкнено — нові події з’являться тут', 'History off': 'Історію вимкнено',
+  'All': 'Усі', 'Skipped only': 'Лише пропущені', 'Played': 'Зіграно', 'Just now': 'Щойно', 'No sound': 'Без звуку', 'Skipped': 'Пропущено',
+  'Turn on the history to see what peon-ping does with each event — and why something stayed silent.': 'Увімкніть історію, щоб бачити, що peon-ping робить з кожною подією і чому щось не прозвучало.',
+  'Nothing yet. Work with your agent for a bit, then come back.': 'Поки порожньо. Попрацюйте з агентом і поверніться.', 'Nothing skipped recently.': 'Останнім часом нічого не пропущено.',
+  // history reasons (from the server)
+  'Sounds were muted': 'Звук був вимкнений', 'Silent folder': 'Тиха папка', 'Event switched off': 'Подію вимкнено', 'Same event again within 5 s': 'Та сама подія протягом 5 с',
+  'Repeat of an event already handled': 'Повтор уже обробленої події', 'Still waiting — not repeated': 'Досі чекає — без повтору', 'Another session started moments ago': 'Інша сесія щойно почалася',
+  'Session resumed after compacting': 'Сесію відновлено після стиснення', 'Session ended': 'Сесію завершено', 'Tool failure not worth a sound': 'Збій інструмента без звуку',
+  'Sub-agent finished': 'Субагент закінчив', 'Sub-agent event': 'Подія субагента', 'Sub-agent session': 'Сесія субагента', 'Agent session': 'Сесія агента', 'Delegated session': 'Делегована сесія',
+  'Event peon-ping does not handle': 'Подія, яку peon-ping не обробляє', 'Notification peon-ping does not handle': 'Сповіщення, яке peon-ping не обробляє', 'No sound for this event': 'Для цієї події звуку немає',
+  'Just now — still playing': 'Щойно — ще грає', 'A quiet mode: call, Focus, headphones or tab in front': 'Режим тиші: дзвінок, Focus, навушники чи вкладка перед вами',
+  'No sound in the pack for this event': 'У пакеті немає звуку для цієї події', 'Skipped by peon-ping': 'Пропущено peon-ping',
+  // health checks (from the server; titles with numbers are templates below)
+  'Sounds are on': 'Звук увімкнено', 'Sounds are muted': 'Звук вимкнено', 'Nothing plays until you turn sounds back on.': 'Нічого не звучатиме, доки ви не ввімкнете звук.', 'Turn sounds on': 'Увімкнути звук',
+  'Volume is at 0%': 'Гучність 0%', 'Sounds play, but you will not hear them.': 'Звуки грають, але їх не чути.', 'Set to 50%': 'Поставити 50%',
+  'All the main events are switched off': 'Усі основні події вимкнено', 'Session start, Task done, Needs your input and Error are all off.': 'Початок сесії, Задачу виконано, Потрібна відповідь і Помилка — усе вимкнено.', 'Turn them on': 'Увімкнути',
+  'peon-ping runs its logic in Python.': 'peon-ping працює на Python.', 'Python 3 is missing': 'Немає Python 3', 'peon-ping needs python3 for every sound. Install the Command Line Tools or Homebrew Python.': 'peon-ping потрібен python3 для кожного звуку. Встановіть Command Line Tools або Python з Homebrew.',
+  'Claude Code settings not found': 'Налаштування Claude Code не знайдено', '~/.claude/settings.json is missing, so Claude Code does not call peon-ping.': '~/.claude/settings.json немає, тож Claude Code не викликає peon-ping.',
+  'Start, prompt, done, permission and notification events reach peon-ping.': 'Події старту, запиту, завершення, дозволу й сповіщень доходять до peon-ping.',
+  'Cursor: hooks registered': 'Cursor: хуки зареєстровано', 'Cursor: no peon-ping hooks': 'Cursor: хуків peon-ping немає', 'Cursor also reads the Claude Code hooks when third-party skills are on.': 'Cursor також читає хуки Claude Code, якщо ввімкнено third-party skills.',
+  'Re-run the peon-ping installer with Cursor installed.': 'Перезапустіть інсталятор peon-ping, коли Cursor встановлено.',
+  'GitHub Copilot CLI: hooks registered': 'GitHub Copilot CLI: хуки зареєстровано', 'GitHub Copilot CLI: no peon-ping hooks': 'GitHub Copilot CLI: хуків peon-ping немає', 'Re-run the peon-ping installer with Copilot CLI installed.': 'Перезапустіть інсталятор peon-ping, коли Copilot CLI встановлено.',
+  'afplay is missing': 'Немає afplay', 'peon-ping plays sounds with /usr/bin/afplay.': 'peon-ping програє звуки через /usr/bin/afplay.',
+  'No sound packs installed': 'Жодного пакета не встановлено', 'Install one from Get packs.': 'Встановіть пакет у Каталозі.', 'Tools without their own pack have nothing to play.': 'Інструментам без власного пакета нічого грати.',
+  'All sound files are present': 'Усі звукові файли на місці', 'Remove them': 'Прибрати', 'Download again': 'Завантажити знову',
+  'They never finished downloading. Reinstalling fetches them again; your edits stay.': 'Вони не довантажилися. Перевстановлення завантажить їх знову; ваші зміни збережуться.',
+  'Remove them from the pack, or add them again.': 'Приберіть їх із пакета або додайте знову.',
+  'Pop-ups are off': 'Банери вимкнено', 'Sounds still play. Turn pop-ups on in Notifications if you want banners.': 'Звуки грають. Увімкніть банери у Сповіщеннях, якщо вони потрібні.',
+  'peon-ping falls back to the classic banner.': 'peon-ping показує класичний банер.', 'Download it': 'Завантажити',
+  'Focus detection needs Full Disk Access': 'Для Focus потрібен повний доступ до диска', 'Give Full Disk Access to the app your agent runs in (Terminal, iTerm, Cursor…). It cannot be checked from here.': 'Надайте повний доступ до диска програмі, де працює агент (Terminal, iTerm, Cursor…). Звідси це перевірити не можна.',
+  'PeonBar is not installed': 'PeonBar не встановлено', 'The menu-bar switch comes with the editor installer.': 'Перемикач у меню-барі встановлюється разом із редактором.',
+  'PeonBar is not running': 'PeonBar не запущено', 'Without it the menu-bar switch, the hotkey and “stop sound on close” do nothing.': 'Без нього не працюють перемикач у меню-барі, гаряча клавіша і «зупиняти звук при закритті».', 'Start PeonBar': 'Запустити PeonBar',
+  'PeonBar is running and starts at login': 'PeonBar запущено, стартує при вході', 'PeonBar is running (not at login)': 'PeonBar запущено (без автозапуску)', 'Turn on PeonBar → Start at login.': 'Увімкніть PeonBar → Start at login.',
+  'PeonBar → Check for Updates installs it.': 'PeonBar → Check for Updates встановить її.', 'Re-running the peon-ping installer updates it and keeps your settings.': 'Повторний запуск інсталятора peon-ping оновить його й збереже налаштування.',
+  'Main events are on': 'Основні події ввімкнено',
+  // health groups and banner positions
+  'Hooks': 'Хуки', 'Sound': 'Звук', 'Packs': 'Пакети', 'Editor': 'Редактор',
+  'top-left': 'вгорі ліворуч', 'top-center': 'вгорі по центру', 'top-right': 'вгорі праворуч', 'bottom-left': 'внизу ліворуч', 'bottom-center': 'внизу по центру', 'bottom-right': 'внизу праворуч', 'Removed bindings to removed packs': 'Прив’язки до видалених пакетів прибрано', 'PeonBar started': 'PeonBar запущено', 'Nothing to fix': 'Нічого виправляти',
+};
+
+const TEMPLATES_UK = {
+  '{n} installed. The default pack plays everywhere a tool has no pack of its own.': '{n} встановлено. Пакет за замовчуванням грає всюди, де інструмент не має власного.',
+  '{n} sounds': '{n} звуків', '{name} · {n} sounds': '{name} · {n} звуків', 'Copy of {name}': 'Копія «{name}»', 'Default — {pack}': 'За замовчуванням — {pack}', 'Same as default — {pack}': 'Як за замовчуванням — {pack}',
+  '{pack} — removed, plays the default': '{pack} — видалено, грає пакет за замовчуванням', 'Muted until {t}': 'Вимкнено до {t}', 'tomorrow {t}': 'завтра {t}',
+  '{on} of {n} on': 'увімкнено {on} з {n}', '{title} on for all packs': '«{title}» увімкнено для всіх пакетів', '{title} off for all packs': '«{title}» вимкнено для всіх пакетів',
+  'Save to {event}': 'Зберегти в «{event}»', 'Up to {n} seconds. Your browser asks for the microphone the first time.': 'До {n} секунд. Першого разу браузер попросить доступ до мікрофона.',
+  '{s} s': '{s} с', '{s} s · {t} s of silence trimmed': '{s} с · обрізано {t} с тиші', 'Uploading {name}…': 'Завантаження {name}…', 'Cleaning up {name}…': 'Обробка {name}…',
+  'Added {name}': 'Додано: {name}', 'from {event}': 'з «{event}»', 'Move back to {event}': 'Повернути в «{event}»', '{name} is now the default pack': '{name} тепер пакет за замовчуванням', '{name} is your default': '{name} — ваш пакет за замовчуванням',
+  'Remove “{title}”? Its sound files are deleted; you can install it again from Get packs.': 'Видалити «{title}»? Звукові файли буде видалено; встановити знову можна з Каталогу.',
+  'Removed {name}': 'Видалено: {name}', 'Installed {name}': 'Встановлено: {name}', '{name} → {pack}': '{name} → {pack}', '{name} plays sounds again': '{name}: звук повернуто', '{name} silenced': '{name}: тиша',
+  'Showing {n} of {m}': 'Показано {n} з {m}', 'No packs match.': 'Нічого не знайдено.', '{n} packs from the peon-ping registry. Press ▶ to hear a sample before installing.': '{n} пакетів у каталозі peon-ping. Натисніть ▶, щоб послухати перед встановленням.',
+  'by {author}': 'від {author}', '{n} seconds': '{n} секунд', '{name} theme': 'Тема «{name}»', 'Default: {text}': 'За замовчуванням: {text}', 'Example: {text}': 'Приклад: {text}',
+  'Sending to {where}': 'Надсилається в {where}', 'Step {n} of {m}': 'Крок {n} з {m}', '{n} thing needs attention': '{n} пункт потребує уваги', '{n} things need attention': '{n} пункти потребують уваги',
+  '{n} thing needs a look — Health has a fix button for most.': '{n} пункт варто переглянути — у Діагностиці для більшості є кнопка виправлення.', '{n} things need a look — Health has a fix button for most.': '{n} пункти варто переглянути — у Діагностиці для більшості є кнопка виправлення.',
+  '{label} — done': '{label} — готово', 'Uses peon-ping’s debug log, kept on this Mac for {n} days. It includes folder names and pop-up text.': 'Використовує журнал налагодження peon-ping, що зберігається на цьому Mac {n} днів. У ньому є назви папок і тексти банерів.',
+  // health checks with numbers
+  'Claude Code: {n} hooks registered': 'Claude Code: зареєстровано хуків — {n}', 'Claude Code: {n} hook missing': 'Claude Code: бракує {n} хука', 'Claude Code: {n} hooks missing': 'Claude Code: бракує {n} хуків',
+  'Volume {n}%': 'Гучність {n}%', 'Default pack: {name}': 'Пакет за замовчуванням: {name}', 'Default pack “{name}” is not installed': 'Пакет за замовчуванням «{name}» не встановлено', 'Use {name}': 'Використати {name}',
+  '{n} binding to removed packs': '{n} прив’язка до видалених пакетів', '{n} bindings to removed packs': '{n} прив’язки до видалених пакетів', '{list}. These play the default pack instead.': '{list}. Замість них грає пакет за замовчуванням.',
+  '{name}: {n} sound file missing': '{name}: бракує {n} файлу', '{name}: {n} sound files missing': '{name}: бракує {n} файлів',
+  'The {name} banner theme is not downloaded': 'Тему банера «{name}» не завантажено', 'peon-ping {v} — {latest} is available': 'peon-ping {v} — доступна {latest}', 'peon-ping editor {v} — {latest} is available': 'peon-ping editor {v} — доступна {latest}',
+  'peon-ping is not called on {list}. Re-run the peon-ping installer to register them.': 'peon-ping не викликається на {list}. Перезапустіть інсталятор peon-ping, щоб зареєструвати.',
+};
+
+// Server-made health text → the English template it came from, so it can be translated with its numbers
+const SERVER_PATTERNS = [
+  [/^Claude Code: (\d+) hooks registered$/, 'Claude Code: {n} hooks registered', ['n']],
+  [/^Claude Code: (\d+) hooks? missing$/, (m) => (m[1] === '1' ? 'Claude Code: {n} hook missing' : 'Claude Code: {n} hooks missing'), ['n']],
+  [/^Volume (\d+)%$/, 'Volume {n}%', ['n']],
+  [/^Default pack: (.+)$/, 'Default pack: {name}', ['name']],
+  [/^Default pack “(.+)” is not installed$/, 'Default pack “{name}” is not installed', ['name']],
+  [/^Use (.+)$/, 'Use {name}', ['name']],
+  [/^(\d+) bindings? to removed packs$/, (m) => (m[1] === '1' ? '{n} binding to removed packs' : '{n} bindings to removed packs'), ['n']],
+  [/^(.+)\. These play the default pack instead\.$/, '{list}. These play the default pack instead.', ['list']],
+  [/^(.+): (\d+) sound files? missing$/, (m) => (m[2] === '1' ? '{name}: {n} sound file missing' : '{name}: {n} sound files missing'), ['name', 'n']],
+  [/^The (\w+) banner theme is not downloaded$/, 'The {name} banner theme is not downloaded', ['name']],
+  [/^peon-ping ([\d.]+) — ([\d.]+) is available$/, 'peon-ping {v} — {latest} is available', ['v', 'latest']],
+  [/^peon-ping editor ([\d.]+) — ([\d.]+) is available$/, 'peon-ping editor {v} — {latest} is available', ['v', 'latest']],
+  [/^peon-ping is not called on (.+)\. Re-run the peon-ping installer to register them\.$/, 'peon-ping is not called on {list}. Re-run the peon-ping installer to register them.', ['list']],
+];
+
+const LANG_KEY = 'peon-editor-lang';
+function pickLang() {
+  try { const saved = localStorage.getItem(LANG_KEY); if (saved === 'en' || saved === 'uk') return saved; } catch {}
+  return (navigator.languages || [navigator.language]).some((l) => /^uk\b/i.test(l)) ? 'uk' : 'en';
+}
+const LANG = pickLang();
+document.documentElement.lang = LANG;
+
+function fill(text, vars) {
+  return text.replace(/\{(\w+)\}/g, (all, k) => (vars && k in vars ? vars[k] : all));
+}
+
+// Exact-string translation; also recognises server-made sentences with numbers in them
+function tr(text) {
+  if (LANG !== 'uk' || typeof text !== 'string' || !text) return text;
+  if (text in UK) return UK[text];
+  for (const [re, tpl, keys] of SERVER_PATTERNS) {
+    const m = text.match(re);
+    if (!m) continue;
+    const key = typeof tpl === 'function' ? tpl(m) : tpl;
+    if (!(key in TEMPLATES_UK)) return text;
+    return fill(TEMPLATES_UK[key], Object.fromEntries(keys.map((k, i) => [k, m[i + 1]])));
+  }
+  return text;
+}
+
+// Template translation: t('{n} sounds', { n: 3 })
+function t(template, vars = {}) {
+  return fill(LANG === 'uk' && template in TEMPLATES_UK ? TEMPLATES_UK[template] : template, vars);
+}
+
+// Plain HTML (header, footer, <option>s) is translated once at start
+function translateStatic(root) {
+  if (LANG !== 'uk') return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const s = n.nodeValue.trim();
+    if (s && tr(s) !== s) n.nodeValue = n.nodeValue.replace(s, tr(s));
+  }
+  root.querySelectorAll('[title],[aria-label],[placeholder]').forEach((e) => {
+    for (const a of ['title', 'aria-label', 'placeholder']) if (e.hasAttribute(a)) e.setAttribute(a, tr(e.getAttribute(a)));
+  });
+}
+</script>
 <script>
 const EVENTS = {
   'session.start':   { title: 'Session start',     hint: 'A new agent session opens' },
@@ -398,12 +644,13 @@ const EVENTS = {
 };
 // Languages kept out of the quick chips even when the browser lists them; still reachable via "Other…"
 const TUCKED_LANGS = ['ru'];
-const eventTitle = (name) => (EVENTS[name] || {}).title || name;
+const eventTitle = (name) => tr((EVENTS[name] || {}).title || name);
 
 const $ = (s, root = document) => root.querySelector(s);
 const el = (tag, props = {}, ...children) => {
+  for (const k of ['textContent', 'placeholder', 'title']) if (typeof props[k] === 'string') props = { ...props, [k]: tr(props[k]) };
   const node = Object.assign(document.createElement(tag), props);
-  for (const c of children.flat()) if (c != null && c !== false) node.append(c);
+  for (const c of children.flat()) if (c != null && c !== false) node.append(typeof c === 'string' ? tr(c) : c);
   return node;
 };
 
@@ -421,13 +668,13 @@ async function post(route, body) {
   try { return await res.json(); } catch { return { ok: false, message: 'Request failed' }; }
 }
 function toast(msg, { error = false, action } = {}) {
-  const t = $('#toast');
-  t.replaceChildren(el('span', { textContent: msg }));
-  if (action) t.append(el('button', { textContent: action.label, onclick: () => { t.style.display = 'none'; action.run(); } }));
-  t.className = error ? 'err' : '';
-  t.style.display = 'flex';
+  const box = $('#toast');
+  box.replaceChildren(el('span', { textContent: tr(String(msg)) }));
+  if (action) box.append(el('button', { textContent: action.label, onclick: () => { box.style.display = 'none'; action.run(); } }));
+  box.className = error ? 'err' : '';
+  box.style.display = 'flex';
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => (t.style.display = 'none'), action ? 7000 : 3500);
+  toast.timer = setTimeout(() => (box.style.display = 'none'), action ? 7000 : 3500);
 }
 function done(data, okMsg) {
   if (!data.ok) toast(data.message || 'Something went wrong', { error: true });
@@ -435,7 +682,7 @@ function done(data, okMsg) {
   return data.ok;
 }
 const packTitle = (name) => (store.packs.find((p) => p.name === name) || {}).display_name || name;
-const toolName = (id) => id === 'default' ? 'Default' : ((store.tools && [...store.tools.tools, ...store.tools.known].find((t) => t.id === id)) || {}).name || id;
+const toolName = (id) => id === 'default' ? 'Default' : ((store.tools && [...store.tools.tools, ...store.tools.known].find((x) => x.id === id)) || {}).name || id;
 function formatSize(bytes) {
   if (!bytes) return '';
   return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB';
@@ -512,7 +759,7 @@ function renderGlobal() {
   const s = store.status;
   $('#ver').textContent = s.editor_version ? 'v' + s.editor_version : '';
   $('#soundsOn').checked = s.sounds_on;
-  $('#soundsText').textContent = s.sounds_on ? 'Sounds on' : s.mute_until ? 'Muted until ' + formatUntil(s.mute_until) : 'Muted';
+  $('#soundsText').textContent = s.sounds_on ? tr('Sounds on') : s.mute_until ? t('Muted until {t}', { t: formatUntil(s.mute_until) }) : tr('Muted');
   document.body.classList.toggle('muted', !s.sounds_on);
   $('#volume').value = Math.round(s.volume * 100);
   $('#volumeOut').textContent = Math.round(s.volume * 100) + '%';
@@ -522,7 +769,7 @@ function renderGlobal() {
 function formatUntil(epoch) {
   const d = new Date(epoch * 1000);
   const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return d.toDateString() === new Date().toDateString() ? hm : (d.getDate() === new Date(Date.now() + 86400000).getDate() ? 'tomorrow ' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + hm;
+  return d.toDateString() === new Date().toDateString() ? hm : (d.getDate() === new Date(Date.now() + 86400000).getDate() ? t('tomorrow {t}', { t: hm }) : d.toLocaleDateString([], { weekday: 'short' }) + ' ' + hm);
 }
 
 // "Until tomorrow" means 9:00 the next morning
@@ -541,7 +788,7 @@ $('#muteFor').onchange = async (e) => {
   e.target.value = '';
   if (!choice) return;
   const until = muteEnd(choice);
-  if (done(await post('/api/sounds', { on: false, until }), 'Muted until ' + formatUntil(until))) {
+  if (done(await post('/api/sounds', { on: false, until }), t('Muted until {t}', { t: formatUntil(until) }))) {
     store.status.sounds_on = false;
     store.status.mute_until = until;
   }
@@ -589,7 +836,7 @@ function viewPacks() {
     return el('div', { className: 'card pack-card' },
       el('div', { className: 'top' },
         Object.assign(playBtn(() => sampleOf(p.name), 'Play a sample'), { disabled: !p.sound_count }),
-        el('div', {}, el('div', { className: 'name', textContent: p.display_name }), el('div', { className: 'small dim', textContent: p.name + ' · ' + p.sound_count + ' sounds' }))),
+        el('div', {}, el('div', { className: 'name', textContent: p.display_name }), el('div', { className: 'small dim', textContent: t('{name} · {n} sounds', { name: p.name, n: p.sound_count }) }))),
       chips.length ? el('div', { className: 'chips' }, chips) : el('div', { className: 'small dim', textContent: 'Not used by any tool' }),
       el('div', { className: 'bottom' },
         el('a', { className: 'btn sm primary', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds', style: 'text-decoration:none' }),
@@ -606,7 +853,7 @@ function viewPacks() {
   grid.ondrop = (e) => { const f = e.dataTransfer.files[0]; if (f) { e.preventDefault(); importFile(f, importBtn); } };
   return [
     el('div', { className: 'page-head' },
-      el('div', {}, el('h1', { textContent: 'My packs' }), el('p', { textContent: store.packs.length + ' installed. The default pack plays everywhere a tool has no pack of its own.' })),
+      el('div', {}, el('h1', { textContent: 'My packs' }), el('p', { textContent: t('{n} installed. The default pack plays everywhere a tool has no pack of its own.', { n: store.packs.length }) })),
       el('div', { className: 'actions' }, importBtn, fileInput)),
     grid,
   ];
@@ -654,7 +901,7 @@ function createCard() {
     let idTouched = false;
     title.oninput = () => { if (!idTouched) id.value = uniqueSlug(title.value); };
     id.oninput = () => (idTouched = true);
-    const from = el('select', {}, el('option', { value: '', textContent: 'Empty pack' }), store.packs.map((p) => el('option', { value: p.name, textContent: 'Copy of ' + p.display_name })));
+    const from = el('select', {}, el('option', { value: '', textContent: 'Empty pack' }), store.packs.map((p) => el('option', { value: p.name, textContent: t('Copy of {name}', { name: p.display_name }) })));
     const go = el('button', { className: 'btn primary', textContent: 'Create', onclick: busyClick(() => createPack({ name: id.value || uniqueSlug(title.value), display_name: title.value, from: from.value })) });
     card.className = 'card pack-card';
     card.onclick = card.onkeydown = null;
@@ -674,38 +921,38 @@ function createCard() {
 async function viewTools() {
   setTab('tools');
   const f = await getJson('/api/folders');
-  const t = store.tools;
+  const tb = store.tools;
   const packOptions = (selected, withDefault) => {
     const sel = el('select');
-    if (withDefault) sel.append(el('option', { value: '', textContent: 'Default — ' + packTitle(t.default_pack) }));
+    if (withDefault) sel.append(el('option', { value: '', textContent: t('Default — {pack}', { pack: packTitle(store.tools.default_pack) }) }));
     for (const p of store.packs) sel.append(el('option', { value: p.name, textContent: p.display_name }));
-    if (selected && !store.packs.some((p) => p.name === selected)) sel.append(el('option', { value: selected, textContent: selected + ' — removed, plays the default' }));
+    if (selected && !store.packs.some((p) => p.name === selected)) sel.append(el('option', { value: selected, textContent: t('{pack} — removed, plays the default', { pack: selected }) }));
     sel.value = selected;
     return sel;
   };
 
-  const defSel = packOptions(t.default_pack, false);
+  const defSel = packOptions(tb.default_pack, false);
   defSel.onchange = () => makeDefault(defSel.value);
   const rows = [el('div', { className: 'tool default' },
     el('div', { className: 'who' }, el('div', { className: 't', textContent: 'Default pack' }), el('div', { className: 'small dim', textContent: 'Used by every tool below set to “Default”' })),
     playBtn(() => sampleOf(defSel.value), 'Play a sample'),
     defSel)];
 
-  for (const tool of t.tools) {
+  for (const tool of tb.tools) {
     const sel = packOptions(tool.pack, true);
     sel.setAttribute('aria-label', 'Pack for ' + tool.name);
     sel.onchange = async () => {
-      if (done(await post('/api/tools', { tool: tool.id, pack: sel.value }), tool.name + ' → ' + (sel.value ? packTitle(sel.value) : 'default pack'))) await refreshCore();
+      if (done(await post('/api/tools', { tool: tool.id, pack: sel.value }), t('{name} → {pack}', { name: tool.name, pack: sel.value ? packTitle(sel.value) : tr('Default pack') }))) await refreshCore();
       route();
     };
     const who = el('div', { className: 'who' }, el('div', { className: 't' }, tool.name, tool.seen ? el('span', { className: 'seen', title: 'peon-ping has received events from this tool' }) : null), el('div', { className: 'small dim mono', textContent: tool.id }));
-    rows.push(el('div', { className: 'tool' }, who, playBtn(() => sampleOf(sel.value || t.default_pack), 'Play a sample'), sel));
+    rows.push(el('div', { className: 'tool' }, who, playBtn(() => sampleOf(sel.value || tb.default_pack), 'Play a sample'), sel));
   }
 
-  if (t.known.length) {
-    const sel = el('select', {}, t.known.map((k) => el('option', { value: k.id, textContent: k.name })));
+  if (tb.known.length) {
+    const sel = el('select', {}, tb.known.map((k) => el('option', { value: k.id, textContent: k.name })));
     const add = el('button', { className: 'btn', textContent: 'Add tool', onclick: busyClick(async () => {
-      if (done(await post('/api/tools', { tool: sel.value, pack: t.default_pack }))) { await refreshCore(); route(); }
+      if (done(await post('/api/tools', { tool: sel.value, pack: tb.default_pack }))) { await refreshCore(); route(); }
     }) });
     rows.push(el('div', { className: 'tool' }, el('div', { className: 'who' }, el('div', { className: 't dim', textContent: 'Another tool' })), sel, add));
   }
@@ -724,22 +971,22 @@ async function viewTools() {
     return el('div', { className: 'tool' },
       el('div', { className: 'who' }, el('div', { className: 't mono', textContent: r.pattern })),
       playBtn(() => sampleOf(sel.value), 'Play a sample'), sel,
-      el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: busyClick(async () => { if (done(await post('/api/folders/unbind', { pattern: r.pattern }), 'Removed ' + r.pattern)) await refreshCore(); route(); }) }));
+      el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: busyClick(async () => { if (done(await post('/api/folders/unbind', { pattern: r.pattern }), t('Removed {name}', { name: r.pattern }))) await refreshCore(); route(); }) }));
   });
   if (!folderRows.length) folderRows.push(el('div', { className: 'empty-row', textContent: 'No folder rules yet.' }));
   const newFolder = folderInput('Folder, e.g. ~/work/api or ~/work/*');
-  const newFolderPack = packOptions(t.default_pack, false);
+  const newFolderPack = packOptions(tb.default_pack, false);
   folderRows.push(el('div', { className: 'add-row' }, newFolder, newFolderPack, el('button', { className: 'btn', textContent: 'Add', onclick: busyClick(async () => {
     if (done(await post('/api/folders/bind', { pattern: newFolder.value, pack: newFolderPack.value }), newFolder.value + ' → ' + packTitle(newFolderPack.value))) { await refreshCore(); route(); }
   }) })));
 
   const silentRows = f.silenced.map((pattern) => el('div', { className: 'tool' },
     el('div', { className: 'who' }, el('div', { className: 't mono', textContent: pattern })),
-    el('button', { className: 'btn sm', textContent: 'Unsilence', onclick: busyClick(async () => { done(await post('/api/folders/silence', { pattern, silenced: false }), pattern + ' plays sounds again'); route(); }) })));
+    el('button', { className: 'btn sm', textContent: 'Unsilence', onclick: busyClick(async () => { done(await post('/api/folders/silence', { pattern, silenced: false }), t('{name} plays sounds again', { name: pattern })); route(); }) })));
   if (!silentRows.length) silentRows.push(el('div', { className: 'empty-row', textContent: 'Nothing silenced.' }));
   const newSilent = folderInput('Folder to keep quiet, e.g. ~/Downloads');
   silentRows.push(el('div', { className: 'add-row' }, newSilent, el('button', { className: 'btn', textContent: 'Silence', onclick: busyClick(async () => {
-    if (done(await post('/api/folders/silence', { pattern: newSilent.value, silenced: true }), newSilent.value + ' silenced')) route();
+    if (done(await post('/api/folders/silence', { pattern: newSilent.value, silenced: true }), t('{name} silenced', { name: newSilent.value }))) route();
   }) })));
 
   return [
@@ -836,7 +1083,7 @@ function renderEvents(p, q, only) {
     const head = el('div', { className: 'event-head' },
       switchEl(cat.category_enabled, async (input) => {
         input.disabled = true;
-        if (done(await post('/api/event', { category: cat.name, enabled: input.checked }), eventTitle(cat.name) + (input.checked ? ' on' : ' off') + ' for all packs')) cat.category_enabled = input.checked;
+        if (done(await post('/api/event', { category: cat.name, enabled: input.checked }), t(input.checked ? '{title} on for all packs' : '{title} off for all packs', { title: eventTitle(cat.name) }))) cat.category_enabled = input.checked;
         else input.checked = !input.checked;
         input.disabled = false;
         section.classList.toggle('off', !cat.category_enabled);
@@ -844,7 +1091,7 @@ function renderEvents(p, q, only) {
         if (!cat.category_enabled) head.after(offBanner());
       }, 'Event ' + eventTitle(cat.name)),
       el('div', {}, el('div', { className: 't', textContent: eventTitle(cat.name) }), el('div', { className: 'small dim' }, (EVENTS[cat.name] || {}).hint || cat.hint, ' · ', el('span', { className: 'mono', textContent: cat.name }))),
-      el('span', { className: 'count', textContent: cat.sounds.length ? on + ' of ' + cat.sounds.length + ' on' : '' }),
+      el('span', { className: 'count', textContent: cat.sounds.length ? t('{on} of {n} on', { on, n: cat.sounds.length }) : '' }),
       cat.sounds.length ? el('button', { className: 'btn sm ghost', textContent: on === cat.sounds.length ? 'Turn all off' : 'Turn all on', onclick: busyClick(() => setAll(cat, on !== cat.sounds.length)) }) : null,
       p.custom ? el('button', { className: 'btn sm', textContent: '＋ Add sound', onclick: () => toggleAddPanel(section, head, p, cat) }) : null);
     section.append(head);
@@ -960,7 +1207,7 @@ function recorder(p, cat) {
     }
     if (take) {
       const play = playBtn(() => take.url, 'Listen');
-      const save = el('button', { className: 'btn primary', textContent: 'Save to ' + eventTitle(cat.name), onclick: busyClick(async () => {
+      const save = el('button', { className: 'btn primary', textContent: t('Save to {event}', { event: eventTitle(cat.name) }), onclick: busyClick(async () => {
         const blob = cleanBox.checked ? take.clean : take.raw;
         const name = (slugify(label.value) || 'recording') + '.wav';
         if (done(await uploadSound(p, cat, blob, name, label.value.trim() || 'My recording'), 'Saved')) { stopAll(); await route(); }
@@ -975,7 +1222,7 @@ function recorder(p, cat) {
     }
     box.replaceChildren(el('div', { className: 'row' },
       el('button', { className: 'btn danger-solid', textContent: '● Record', onclick: start }),
-      el('span', { className: 'small dim', textContent: 'Up to ' + MAX_SECONDS + ' seconds. Your browser asks for the microphone the first time.' })));
+      el('span', { className: 'small dim', textContent: t('Up to {n} seconds. Your browser asks for the microphone the first time.', { n: MAX_SECONDS }) })));
   };
 
   async function start() {
@@ -998,7 +1245,7 @@ function recorder(p, cat) {
       const cleaned = cleanUp(buffer);
       const plain = cleanUp(buffer, { trim: false, normalize: false });
       const clean = encodeWav(cleaned);
-      take = { raw: encodeWav(plain), clean, url: URL.createObjectURL(clean), info: cleaned.seconds.toFixed(1) + ' s' + (cleaned.trimmed > 0.05 ? ' · ' + cleaned.trimmed.toFixed(1) + ' s of silence trimmed' : '') };
+      take = { raw: encodeWav(plain), clean, url: URL.createObjectURL(clean), info: cleaned.trimmed > 0.05 ? t('{s} s · {t} s of silence trimmed', { s: cleaned.seconds.toFixed(1), t: cleaned.trimmed.toFixed(1) }) : t('{s} s', { s: cleaned.seconds.toFixed(1) }) };
       rec = null;
       draw();
     };
@@ -1044,7 +1291,7 @@ function toggleAddPanel(section, head, p, cat) {
       const zone = el('div', { className: 'drop-zone', textContent: 'Drop audio files here or click to choose — WAV, MP3, OGG, M4A or AIFF, up to 5 MB each' });
       const send = async (files) => {
         for (const f of files) {
-          zone.replaceChildren(el('span', { className: 'spinner' }), ' ' + (clean.checked ? 'Cleaning up' : 'Uploading') + ' ' + f.name + '…');
+          zone.replaceChildren(el('span', { className: 'spinner' }), ' ' + t(clean.checked ? 'Cleaning up {name}…' : 'Uploading {name}…', { name: f.name }));
           const label = f.name.replace(/\.[^.]+$/, '');
           let body = f;
           let name = f.name;
@@ -1080,7 +1327,7 @@ function toggleAddPanel(section, head, p, cat) {
           el('div', { className: 'info' }, el('div', { className: 'label', textContent: x.label || x.file }), el('div', { className: 'small dim', textContent: x.file + ' · ' + x.events })),
           have.has(x.file) ? el('span', { className: 'small dim', textContent: 'Added' }) :
             el('button', { className: 'btn sm primary', textContent: 'Add', onclick: busyClick(async () => {
-              if (done(await post('/api/sounds/add', { pack: p.name, category: cat.name, from_pack: packSel.value, from_path: x.path }), 'Added ' + (x.label || x.file))) await route();
+              if (done(await post('/api/sounds/add', { pack: p.name, category: cat.name, from_pack: packSel.value, from_path: x.path }), t('Added {name}', { name: x.label || x.file }))) await route();
             }) })));
       picker.replaceChildren(...(rows.length ? rows : [el('div', { className: 'empty-row', textContent: 'No sounds here.' })]));
     };
@@ -1112,7 +1359,7 @@ function renderSound(p, cat, s) {
   const row = el('div', { className: 'sound' + (s.enabled ? '' : ' off'), draggable: true });
   row.dataset.file = s.file;
   const chips = [];
-  if (s.moved_from) chips.push(el('span', { className: 'chip moved', title: 'Moved here by you' }, 'from ' + eventTitle(s.moved_from), el('button', { className: 'btn ghost sm', style: 'padding:0 2px', textContent: '↺', title: 'Move back to ' + eventTitle(s.moved_from), onclick: () => move(s, cat.name, s.moved_from) })));
+  if (s.moved_from) chips.push(el('span', { className: 'chip moved', title: 'Moved here by you' }, t('from {event}', { event: eventTitle(s.moved_from) }), el('button', { className: 'btn ghost sm', style: 'padding:0 2px', textContent: '↺', title: t('Move back to {event}', { event: eventTitle(s.moved_from) }), onclick: () => move(s, cat.name, s.moved_from) })));
   if (s.missing) chips.push(el('span', { className: 'chip missing', textContent: 'file missing', title: 'Not downloaded. Reinstall the pack to fetch it.' }));
 
   const moveSel = el('select', { className: 'move', title: 'Move to another event' }, el('option', { value: '', textContent: '⇄' }));
@@ -1133,7 +1380,7 @@ function renderSound(p, cat, s) {
       if (label !== null && done(await post('/api/sounds/rename', { pack: p.name, category: cat.name, file: s.file, label }), 'Renamed')) route();
     } }) : null,
     p.custom ? el('button', { className: 'btn sm ghost danger', textContent: '✕', title: 'Remove from this event', onclick: async () => {
-      if (done(await post('/api/sounds/remove', { pack: p.name, category: cat.name, file: s.file }), 'Removed ' + (s.label || s.file))) route();
+      if (done(await post('/api/sounds/remove', { pack: p.name, category: cat.name, file: s.file }), t('Removed {name}', { name: s.label || s.file }))) route();
     } }) : null,
     switchEl(s.enabled, async (input) => {
       input.disabled = true;
@@ -1212,19 +1459,19 @@ async function setAll(cat, enabled) {
 }
 
 async function makeDefault(name) {
-  if (done(await post('/api/default', { pack: name }), packTitle(name) + ' is now the default pack')) await refreshCore();
+  if (done(await post('/api/default', { pack: name }), t('{name} is now the default pack', { name: packTitle(name) }))) await refreshCore();
   route();
 }
 
 // Ask first, then show the spinner while peon-ping deletes the files
 const removeClick = (name, title) => (e) => {
-  if (!confirm('Remove “' + title + '”? Its sound files are deleted; you can install it again from Get packs.')) return;
+  if (!confirm(t('Remove “{title}”? Its sound files are deleted; you can install it again from Get packs.', { title }))) return;
   busy(e.currentTarget, () => removePack(name, title));
 };
 
 async function removePack(name, title) {
   const data = await post('/api/remove', { pack: name });
-  if (done(data, 'Removed ' + title)) {
+  if (done(data, t('Removed {name}', { name: title }))) {
     await refreshCore();
     if (store.registry) for (const r of store.registry) if (r.name === name) r.installed = false;
   }
@@ -1270,7 +1517,7 @@ async function viewBrowse() {
       (browse.show !== 'new' || !p.installed) && (browse.show !== 'installed' || p.installed) &&
       (!q || [p.name, p.display_name, p.description, p.author, ...p.tags].join(' ').toLowerCase().includes(q)));
     const rows = matches.slice(0, browse.limit).map(renderEntry);
-    const footer = el('div', { className: 'more small dim' }, matches.length ? 'Showing ' + rows.length + ' of ' + matches.length + ' ' : 'No packs match. ');
+    const footer = el('div', { className: 'more small dim' }, matches.length ? t('Showing {n} of {m}', { n: rows.length, m: matches.length }) + ' ' : tr('No packs match.') + ' ');
     if (matches.length > browse.limit) footer.append(el('button', { className: 'btn sm', textContent: 'Show more', onclick: () => { browse.limit += 40; renderList(); } }));
     list.replaceChildren(...rows, footer);
   };
@@ -1280,7 +1527,7 @@ async function viewBrowse() {
   renderList();
 
   return [
-    el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'Get packs' }), el('p', { textContent: reg.length + ' packs from the peon-ping registry. Press ▶ to hear a sample before installing.' }))),
+    el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'Get packs' }), el('p', { textContent: t('{n} packs from the peon-ping registry. Press ▶ to hear a sample before installing.', { n: reg.length }) }))),
     el('div', { className: 'filters' }, search, show),
     chipBox,
     list,
@@ -1311,7 +1558,7 @@ function renderEntry(p) {
     el('div', { className: 'info' },
       el('div', { className: 't' }, p.display_name, ...tags),
       el('div', { className: 'desc', textContent: p.description, title: p.description }),
-      el('div', { className: 'meta', textContent: [p.name, p.sound_count + ' sounds', formatSize(p.size), p.author && 'by ' + p.author].filter(Boolean).join(' · ') })),
+      el('div', { className: 'meta', textContent: [p.name, t('{n} sounds', { n: p.sound_count }), formatSize(p.size), p.author && t('by {author}', { author: p.author })].filter(Boolean).join(' · ') })),
     act);
 }
 
@@ -1323,7 +1570,7 @@ async function install(p) {
   if (data.ok) {
     p.installed = true;
     await refreshCore();
-    toast('Installed ' + p.display_name, { action: { label: 'Use it…', run: () => (location.hash = '#/tools') } });
+    toast(t('Installed {name}', { name: p.display_name }), { action: { label: 'Use it…', run: () => (location.hash = '#/tools') } });
   } else {
     toast(data.message || 'Install failed', { error: true });
   }
@@ -1354,7 +1601,7 @@ const THEME_INFO = {
   sakura: { name: 'Sakura',  swatch: 'radial-gradient(circle at 75% 70%, rgb(255,184,196) 0 18%, rgb(20,15,18) 19%)', size: [320, 140], pad: 20 },
   jarvis: { name: 'Jarvis',  swatch: 'radial-gradient(circle, rgb(8,13,31) 0 32%, rgb(0,191,255) 33% 40%, rgb(8,13,31) 41%)', size: [300, 300], pad: 20 },
 };
-const SAMPLE_VARS = { project: 'my-app', summary: 'Refactored the login form', excerpt: 'All tests pass.', tool_name: 'Bash', status: 'done', event: 'Stop', ide: 'Claude Code', ide_id: 'claude' };
+const SAMPLE_VARS = { project: 'my-app', summary: tr('Refactored the login form'), excerpt: tr('All tests pass.'), tool_name: 'Bash', status: 'done', event: 'Stop', ide: 'Claude Code', ide_id: 'claude' };
 const notif = { previewKey: 'stop' };
 
 async function saveNotif(patch, msg = 'Saved') {
@@ -1389,28 +1636,28 @@ async function viewNotifications() {
       return b;
     }));
 
-  const dismiss = el('select', {}, [2, 4, 6, 10, 20, 30, 60].map((sec) => el('option', { value: sec, textContent: sec + ' seconds' })), el('option', { value: 0, textContent: 'Until I click it' }));
-  if (![...dismiss.options].some((x) => Number(x.value) === n.dismiss_seconds)) dismiss.append(el('option', { value: n.dismiss_seconds, textContent: n.dismiss_seconds + ' seconds' }));
+  const dismiss = el('select', {}, [2, 4, 6, 10, 20, 30, 60].map((sec) => el('option', { value: sec, textContent: t('{n} seconds', { n: sec }) })), el('option', { value: 0, textContent: 'Until I click it' }));
+  if (![...dismiss.options].some((x) => Number(x.value) === n.dismiss_seconds)) dismiss.append(el('option', { value: n.dismiss_seconds, textContent: t('{n} seconds', { n: n.dismiss_seconds }) }));
   dismiss.value = n.dismiss_seconds;
   dismiss.onchange = () => saveNotif({ dismiss_seconds: Number(dismiss.value) });
 
-  const themes = el('div', { className: 'themes' }, o.themes.map((t) => el('button', {
-    className: 'theme' + (n.theme === t ? ' on' : ''),
-    title: t === 'neon' ? 'Built in' : 'Downloaded from peon-ping the first time you pick it',
+  const themes = el('div', { className: 'themes' }, o.themes.map((th) => el('button', {
+    className: 'theme' + (n.theme === th ? ' on' : ''),
+    title: th === 'neon' ? 'Built in' : 'Downloaded from peon-ping the first time you pick it',
     onclick: async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
-      if (await saveNotif({ theme: t }, THEME_INFO[t].name + ' theme')) rerender();
+      if (await saveNotif({ theme: th }, t('{name} theme', { name: tr(THEME_INFO[th].name) }))) rerender();
       btn.disabled = false;
     },
-  }, el('div', { className: 'sw', style: 'background:' + THEME_INFO[t].swatch }), THEME_INFO[t].name)));
+  }, el('div', { className: 'sw', style: 'background:' + THEME_INFO[th].swatch }), THEME_INFO[th].name)));
 
   const title = el('input', { type: 'text', value: n.title, placeholder: 'Project folder name (default)', maxLength: 60 });
   title.onchange = () => saveNotif({ title: title.value });
   title.oninput = () => { n.title = title.value; renderNotifPreview(); };
 
   const tplFields = o.templates.map((key) => {
-    const input = el('input', { type: 'text', value: n.templates[key], placeholder: 'Default: ' + TEMPLATE_INFO[key].sample, maxLength: 200 });
+    const input = el('input', { type: 'text', value: n.templates[key], placeholder: t('Default: {text}', { text: TEMPLATE_INFO[key].sample }), maxLength: 200 });
     input.onfocus = () => { focusedTpl = input; notif.previewKey = key; renderNotifPreview(); };
     input.oninput = () => { n.templates[key] = input.value; renderNotifPreview(); };
     input.onchange = () => saveNotif({ templates: { [key]: input.value } });
@@ -1418,7 +1665,7 @@ async function viewNotifications() {
     return el('div', { className: 'tpl' }, el('label', { textContent: TEMPLATE_INFO[key].title }), input);
   });
   const vars = el('div', { className: 'vars' }, el('span', { className: 'small dim', textContent: 'Insert:' }),
-    Object.keys(SAMPLE_VARS).map((v) => el('button', { textContent: '{' + v + '}', title: 'Example: ' + SAMPLE_VARS[v], onmousedown: (e) => e.preventDefault(), onclick: () => {
+    Object.keys(SAMPLE_VARS).map((v) => el('button', { textContent: '{' + v + '}', title: t('Example: {text}', { text: SAMPLE_VARS[v] }), onmousedown: (e) => e.preventDefault(), onclick: () => {
       const input = focusedTpl || tplFields[0].querySelector('input');
       const at = input.selectionStart ?? input.value.length;
       input.value = input.value.slice(0, at) + '{' + v + '}' + input.value.slice(input.selectionEnd ?? at);
@@ -1506,7 +1753,7 @@ async function phoneCard() {
         input.disabled = false;
       }, 'Phone notifications');
       const test = el('button', { className: 'btn', textContent: 'Send test', onclick: busyClick(async () => { done(await post('/api/mobile/test', {}), 'Test push sent'); }) });
-      card.append(el('div', { className: 'field' }, sw, el('span', { textContent: 'Sending to ' + where })),
+      card.append(el('div', { className: 'field' }, sw, el('span', { textContent: t('Sending to {where}', { where }) })),
         el('div', { className: 'actions' }, test, el('button', { className: 'btn ghost', textContent: 'Change…', onclick: () => { editing.open = true; render(); } })));
       return;
     }
@@ -1540,7 +1787,7 @@ async function phoneCard() {
         el('div', { className: 'field' }, el('span', { className: 'lbl', textContent: 'Service' }),
           el('div', { className: 'seg' }, ['ntfy', 'pushover', 'telegram'].map((v) => el('button', { className: v === service ? 'on' : '', textContent: v === 'ntfy' ? 'ntfy' : v === 'pushover' ? 'Pushover' : 'Telegram', onclick: () => { service = v; draw(); } })))),
         fields,
-        el('p', { className: 'help' }, help + ' ', el('a', { href: link, target: '_blank', rel: 'noopener', textContent: 'More' })),
+        el('p', { className: 'help' }, tr(help) + ' ', el('a', { href: link, target: '_blank', rel: 'noopener', textContent: 'More' })),
         el('div', { className: 'actions' }, save, m.service ? el('button', { className: 'btn ghost', textContent: 'Cancel', onclick: () => { editing.open = false; render(); } }) : null));
     };
     draw();
@@ -1622,7 +1869,7 @@ function renderNotifPreview() {
   if (!standard && theme === 'neon') bits.push('The icon is your default pack’s.');
   if (info.subtitle && !standard) bits.push('peon-ping always shows “Question pending” on the banner; your Question template appears in macOS notifications and on your phone.');
   bits.push('“Send test” shows the real thing.');
-  note.textContent = bits.join(' ');
+  note.textContent = bits.map(tr).join(' ');
 }
 
 function xButton(accent, right, top) {
@@ -1753,9 +2000,9 @@ async function viewWelcome() {
       const radio = el('input', { type: 'radio', name: 'defpack', checked: p.name === def });
       const row = el('label', { className: 'pick-pack' + (p.name === def ? ' on' : '') },
         radio, Object.assign(playBtn(() => sampleOf(p.name), 'Play a sample'), { disabled: !p.sound_count }),
-        el('div', { className: 'info' }, el('div', { style: 'font-weight:600', textContent: p.display_name }), el('div', { className: 'small dim', textContent: p.sound_count + ' sounds' })));
+        el('div', { className: 'info' }, el('div', { style: 'font-weight:600', textContent: p.display_name }), el('div', { className: 'small dim', textContent: t('{n} sounds', { n: p.sound_count }) })));
       radio.onchange = async () => {
-        if (done(await post('/api/default', { pack: p.name }), p.display_name + ' is your default')) {
+        if (done(await post('/api/default', { pack: p.name }), t('{name} is your default', { name: p.display_name }))) {
           store.status.default_pack = p.name;
           list.querySelectorAll('.pick-pack').forEach((x) => x.classList.toggle('on', x === row));
         }
@@ -1765,12 +2012,12 @@ async function viewWelcome() {
     body = [el('h2', { textContent: 'Pick a voice' }), el('p', { className: 'lead', textContent: 'This pack plays whenever an agent starts, finishes or needs you. Press ▶ to listen.' }), list,
       el('p', { className: 'small dim', style: 'margin-top:12px' }, 'Want something else? ', el('a', { href: '#/browse', style: 'color:var(--accent)', textContent: 'Browse 370+ packs' }), ' — come back with “Setup guide” at the bottom.')];
   } else if (step === 1) {
-    const t = store.tools;
-    const shown = t.tools.filter((x) => x.seen || ['claude', 'copilot', 'cursor', 'codex'].includes(x.id));
+    const tb = store.tools;
+    const shown = tb.tools.filter((x) => x.seen || ['claude', 'copilot', 'cursor', 'codex'].includes(x.id));
     const rows = shown.map((tool) => {
-      const sel = el('select', {}, el('option', { value: '', textContent: 'Same as default — ' + packTitle(t.default_pack) }), store.packs.map((p) => el('option', { value: p.name, textContent: p.display_name })));
+      const sel = el('select', {}, el('option', { value: '', textContent: t('Same as default — {pack}', { pack: packTitle(store.tools.default_pack) }) }), store.packs.map((p) => el('option', { value: p.name, textContent: p.display_name })));
       sel.value = store.packs.some((p) => p.name === tool.pack) ? tool.pack : '';
-      sel.onchange = async () => { if (done(await post('/api/tools', { tool: tool.id, pack: sel.value }), tool.name + ' → ' + (sel.value ? packTitle(sel.value) : 'default'))) store.tools = await getJson('/api/tools'); };
+      sel.onchange = async () => { if (done(await post('/api/tools', { tool: tool.id, pack: sel.value }), t('{name} → {pack}', { name: tool.name, pack: sel.value ? packTitle(sel.value) : tr('Default') }))) store.tools = await getJson('/api/tools'); };
       return el('div', { className: 'tool' }, el('div', { className: 'who' }, el('div', { className: 't' }, tool.name, tool.seen ? el('span', { className: 'seen', title: 'peon-ping has heard from this tool' }) : null)), sel);
     });
     body = [el('h2', { textContent: 'A different voice per tool?' }), el('p', { className: 'lead', textContent: 'Handy when Claude Code, Copilot and Cursor run side by side: you hear which one is done. Leave them on “same as default” if you like.' }), el('div', { className: 'card rows' }, rows)];
@@ -1790,7 +2037,7 @@ async function viewWelcome() {
     setHealthDot(checks);
     const problems = checks.filter((c) => c.status === 'error' || c.status === 'warn');
     body = [el('h2', { textContent: problems.length ? 'Almost there' : 'All set' }),
-      el('p', { className: 'lead', textContent: problems.length ? problems.length + (problems.length === 1 ? ' thing needs' : ' things need') + ' a look — Health has a fix button for most.' : 'peon-ping is wired up. Play the test sound to check your speakers.' }),
+      el('p', { className: 'lead', textContent: problems.length ? t(problems.length === 1 ? '{n} thing needs a look — Health has a fix button for most.' : '{n} things need a look — Health has a fix button for most.', { n: problems.length }) : 'peon-ping is wired up. Play the test sound to check your speakers.' }),
       el('div', { className: 'nav-row', style: 'margin-top:0' },
         el('button', { className: 'btn', textContent: 'Play test sound', onclick: busyClick(async () => { done(await post('/api/health/test-sound', {}), 'Listen…'); }) }),
         problems.length ? el('a', { className: 'btn', href: '#/health', textContent: 'Open Health', style: 'text-decoration:none' }) : null)];
@@ -1801,7 +2048,7 @@ async function viewWelcome() {
     step > 0 ? el('button', { className: 'btn', textContent: 'Back', onclick: () => go(step - 1) }) : null,
     step < STEPS - 1 ? el('button', { className: 'btn primary', textContent: 'Next', onclick: () => go(step + 1) }) : el('button', { className: 'btn primary', textContent: 'Finish', onclick: finish }));
   return [el('div', { className: 'wizard' },
-    el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'Welcome to peon-ping editor' }), el('p', { textContent: 'Step ' + (step + 1) + ' of ' + STEPS }))),
+    el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'Welcome to peon-ping editor' }), el('p', { textContent: t('Step {n} of {m}', { n: step + 1, m: STEPS }) }))),
     el('div', { className: 'steps' }, Array.from({ length: STEPS }, (_, i) => el('span', { className: i <= step ? 'on' : '' }))),
     el('div', { className: 'card body' }, ...body, nav))];
 }
@@ -1833,7 +2080,7 @@ async function viewHealth() {
   const summary = el('div', { className: 'card health-summary' },
     el('span', { className: 'big', textContent: problems.length ? '🩺' : '✅' }),
     el('div', {},
-      el('div', { style: 'font-weight:600', textContent: problems.length ? problems.length + (problems.length === 1 ? ' thing needs' : ' things need') + ' attention' : 'Everything looks good' }),
+      el('div', { style: 'font-weight:600', textContent: problems.length ? t(problems.length === 1 ? '{n} thing needs attention' : '{n} things need attention', { n: problems.length }) : 'Everything looks good' }),
       el('div', { className: 'small dim', textContent: problems.length ? 'Most have a fix button. Still silent after that? Play the test sound.' : 'If you still hear nothing, play the test sound to check your speakers.' })));
 
   const groups = [];
@@ -1856,7 +2103,7 @@ async function viewHealth() {
         el('span', { className: 'icon ' + c.status, textContent: CHECK_ICON[c.status] || '?' }),
         txt,
         c.fix ? el('button', { className: 'btn ' + (c.status === 'error' ? 'primary' : ''), textContent: c.fix.label, onclick: busyClick(async () => {
-          if (done(await post('/api/health/fix', { id: c.fix.id }), c.fix.label + ' — done')) { await refreshCore(); await route(); }
+          if (done(await post('/api/health/fix', { id: c.fix.id }), t('{label} — done', { label: tr(c.fix.label) }))) { await refreshCore(); await route(); }
         }) }) : null);
     })),
   ]);
@@ -1892,7 +2139,7 @@ async function historyCard() {
   const draw = () => {
     const bar = el('div', { className: 'hist-bar' },
       el('label', { className: 'switch-label' }, toggle, 'Keep a history'),
-      el('span', { className: 'small dim', style: 'flex:1 1 240px', textContent: 'Uses peon-ping’s debug log, kept on this Mac for ' + h.retention_days + ' days. It includes folder names and pop-up text.' }),
+      el('span', { className: 'small dim', style: 'flex:1 1 240px', textContent: t('Uses peon-ping’s debug log, kept on this Mac for {n} days. It includes folder names and pop-up text.', { n: h.retention_days }) }),
       h.events.length ? el('div', { className: 'seg' }, [['all', 'All'], ['skipped', 'Skipped only']].map(([v, t]) =>
         el('button', { className: v === filter ? 'on' : '', textContent: t, onclick: () => { filter = v; draw(); } }))) : null);
     const shown = h.events.filter((e) => filter === 'all' || e.status === 'skipped').slice(0, 100);
@@ -1964,6 +2211,12 @@ document.addEventListener('visibilitychange', syncStatus);
 window.addEventListener('focus', syncStatus);
 setInterval(syncStatus, 10000);
 
+translateStatic(document.querySelector('header'));
+translateStatic(document.querySelector('footer'));
+document.querySelectorAll('.lang-switch button').forEach((b) => {
+  b.classList.toggle('on', b.dataset.lang === LANG);
+  b.onclick = () => { try { localStorage.setItem(LANG_KEY, b.dataset.lang); } catch {} location.reload(); };
+});
 getJson('/api/health?offline=1').then(setHealthDot).catch(() => {});
 refreshCore().then(() => { if (!store.status.onboarded && !location.hash) location.hash = '#/welcome'; return route(); }).catch((err) => $('#view').replaceChildren(el('div', { className: 'loading', textContent: err.message })));
 </script>
