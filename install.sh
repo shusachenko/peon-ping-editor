@@ -1,7 +1,7 @@
 #!/bin/bash
 # peon-ping-editor installer: the editor UI plus, on macOS, the PeonBar menu-bar app (starts at login).
 #
-#   curl -fsSL https://raw.githubusercontent.com/Ferosima/peon-ping-editor/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/shusachenko/peon-ping-editor/main/install.sh | bash
 #
 # Re-run it any time to update. Environment overrides:
 #   PEON_EDITOR_REF   branch or tag to install (default: main)
@@ -18,7 +18,9 @@ fi
 
 set -euo pipefail
 
-REPO="${PEON_EDITOR_REPO:-Ferosima/peon-ping-editor}"
+REPO="${PEON_EDITOR_REPO:-shusachenko/peon-ping-editor}"
+# The repo moved from Ferosima/ to shusachenko/; PeonBar on older installs still asks for the old name
+[ "$REPO" = "Ferosima/peon-ping-editor" ] && REPO="shusachenko/peon-ping-editor"
 REF="${PEON_EDITOR_REF:-main}"
 EDITOR_HOME="${PEON_EDITOR_HOME:-$HOME/.peon-editor}"
 BIN_DIR="$HOME/.local/bin"

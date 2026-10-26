@@ -431,6 +431,27 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     writeJson(configPath, cfg);
   }
 
+  // "Turn all on/off": one config write instead of a peon call per sound. `peon sounds` only edits
+  // disabled_sounds, which peon-ping does not sync to adapters, so writing it directly is equivalent.
+  function setSounds(pack, category, files, enabled) {
+    if (!installedPacks().includes(pack)) return { ok: false, message: `Pack "${pack}" is not installed` };
+    const list = (Array.isArray(files) ? files : []).map(String);
+    if (!list.length) return { ok: true, message: '' };
+    const bad = list.find((f) => !soundInCategory(pack, category, f));
+    if (bad) return { ok: false, message: `"${bad}" is not in ${pack}/${category}` };
+    const cfg = loadConfig();
+    const all = (cfg.disabled_sounds ||= {});
+    const packMap = (all[pack] ||= {});
+    const current = new Set(packMap[category] || []);
+    for (const f of list) enabled ? current.delete(f) : current.add(f);
+    if (current.size) packMap[category] = [...current].sort();
+    else delete packMap[category];
+    if (!Object.keys(packMap).length) delete all[pack];
+    if (!Object.keys(all).length) delete cfg.disabled_sounds;
+    writeJson(configPath, cfg);
+    return { ok: true, message: `${list.length} sound${list.length === 1 ? '' : 's'} ${enabled ? 'on' : 'off'}` };
+  }
+
   function setSound(pack, category, file, enabled) {
     if (!installedPacks().includes(pack)) return { ok: false, message: `Pack "${pack}" is not installed` };
     if (!soundInCategory(pack, category, file)) return { ok: false, message: `"${file}" is not in ${pack}/${category}` };
@@ -458,7 +479,8 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
       if (id && !rules.has(id)) rules.set(id, rule.pack || '');
     }
     const recent = readJson(path.join(paths.peonDir, '.state.json'), {}).recent_ide_sources || {};
-    const seen = new Set(Object.keys(recent).map(normalizeTool));
+    // recent_ide_sources also records Claude Code's session-start kinds ("startup", "fork", "clear"…), which are not tools
+    const seen = new Set(Object.keys(recent).map(normalizeTool).filter((id) => id in TOOLS));
     const ids = [...new Set([...PINNED_TOOLS, ...rules.keys(), ...seen])];
     return {
       default_pack: cfg.default_pack || cfg.active_pack || 'peon',
@@ -1061,7 +1083,15 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     // `peon packs remove` asks "Remove N pack(s)? [y/N]" on stdin
     const result = await runAsync(peonBin, ['packs', 'remove', pack], { input: 'y\n', timeout: 30000 });
     if (result.ok && installedPacks().includes(pack)) return { ok: false, message: result.message || 'Remove failed' };
+    if (result.ok) dropBindingsTo(pack);
     return result;
+  }
+
+  // Tools and folders that pointed at a removed pack go back to the default instead of naming a pack that is gone
+  function dropBindingsTo(pack) {
+    const cfg = loadConfig();
+    for (const rule of cfg.ide_rules || []) if (rule.pack === pack) runPeon(['packs', 'ide-unbind', normalizeTool(rule.ide)]);
+    for (const rule of cfg.path_rules || []) if (rule.pack === pack) runPeon(['packs', 'unbind', '--pattern', rule.pattern]);
   }
 
   return {
@@ -1085,6 +1115,7 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     testNotification,
     createPack,
     setStopSoundOnClose,
+    setSounds,
     addSoundFrom,
     uploadSound,
     removeSound,

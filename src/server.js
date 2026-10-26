@@ -127,6 +127,7 @@ function createServer({ peon = createPeon() } = {}) {
 
     const actions = {
       '/api/toggle': (p) => peon.setSound(str(p.pack), str(p.category), str(p.file), Boolean(p.enabled)),
+      '/api/toggle-many': (p) => peon.setSounds(str(p.pack), str(p.category), p.files, Boolean(p.enabled)),
       '/api/move': (p) => peon.moveSound(str(p.pack), str(p.file), str(p.from), str(p.to), str(p.before)),
       '/api/tools': (p) => peon.bindTool(str(p.tool), str(p.pack)),
       '/api/default': (p) => peon.setDefaultPack(str(p.pack)),

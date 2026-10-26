@@ -43,6 +43,7 @@
   .global { margin-left:auto; display:flex; align-items:center; gap:14px; }
   .vol { display:flex; align-items:center; gap:8px; }
   .vol input { width:120px; accent-color:var(--accent); }
+  .vol-icon { color:var(--dim); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; flex:none; }
   .vol output { width:38px; text-align:right; font-variant-numeric:tabular-nums; color:var(--dim); font-size:12px; }
   .muted .vol { opacity:.45; }
 
@@ -85,7 +86,12 @@
   .pack-card { padding:14px; display:flex; flex-direction:column; gap:10px; }
   .pack-card .top { display:flex; gap:10px; align-items:flex-start; }
   .pack-card .name { font-weight:600; }
-  .pack-card .bottom { display:flex; gap:6px; margin-top:auto; flex-wrap:wrap; }
+  .pack-card .bottom { display:flex; gap:6px; margin-top:auto; flex-wrap:wrap; align-items:center; }
+  .pack-card .bottom .icon-btn { margin-left:auto; }
+  .icon-btn { width:30px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; border:1px solid transparent; background:none; border-radius:8px; color:var(--dim); }
+  .icon-btn:hover:not(:disabled) { color:var(--danger); border-color:var(--line); }
+  .icon-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .tool .stale { color:var(--warn); font-size:12px; }
   .pack-card.add { align-items:center; justify-content:center; text-align:center; border-style:dashed; color:var(--dim); text-decoration:none; min-height:140px; }
   .pack-card.add:hover { color:var(--text); border-color:var(--accent); }
 
@@ -133,7 +139,7 @@
   .add-panel .row select, .add-panel .row input[type=search] { flex:1 1 200px; }
   .drop-zone { margin-top:10px; border:2px dashed var(--line); border-radius:10px; padding:18px; text-align:center; color:var(--dim); cursor:pointer; }
   .drop-zone.over { border-color:var(--accent); color:var(--text); }
-  footer { width:100%; max-width:1040px; margin:0 auto; padding:16px 16px 24px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
+  footer { width:calc(100% - 32px); max-width:1008px; margin:0 auto; padding:16px 0 24px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
   footer a { color:var(--dim); }
   footer a:hover { color:var(--text); }
 
@@ -161,6 +167,8 @@
   .sound .missing { background:var(--warn-soft); color:var(--warn); }
   .sound select.move { width:34px; padding:4px; color:var(--dim); flex:none; appearance:none; -webkit-appearance:none; text-align:center; background:var(--surface); cursor:pointer; }
   .grip { color:var(--dim); opacity:.5; user-select:none; flex:none; }
+  /* Dragging needs a mouse; on touch screens the ⇄ menu moves sounds */
+  @media (hover:none) { .grip { display:none; } .sound[draggable=true] { cursor:default; } }
 
   /* browse */
   .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
@@ -188,6 +196,8 @@
   .group h3 { margin:0 0 10px; font-size:13px; }
   .field { display:flex; align-items:center; gap:12px; padding:6px 0; flex-wrap:wrap; }
   .field > label:first-child, .field > .lbl { flex:0 0 150px; color:var(--dim); }
+  /* Hints next to a control wrap inside their own column instead of under the label */
+  .field > .small.dim { flex:1 1 220px; min-width:0; }
   .field input[type=text] { flex:1 1 200px; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button { border:none; background:var(--surface); padding:6px 12px; }
@@ -272,9 +282,11 @@
            background:var(--text); color:var(--bg); padding:10px 14px; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.2); }
   #toast.err { background:var(--danger); color:#fff; }
   #toast button { background:none; border:1px solid currentColor; color:inherit; border-radius:6px; padding:2px 8px; font-size:12px; }
-  .loading { padding:32px; text-align:center; color:var(--dim); }
+  .loading { padding:48px 16px; text-align:center; color:var(--dim); display:flex; gap:10px; align-items:center; justify-content:center; }
 
   @media (max-width:640px) {
+    nav a { padding:6px 8px; font-size:13px; }
+    .sound .label { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
     .global { margin-left:0; width:100%; justify-content:space-between; }
     .vol input { width:100px; }
     .entry { flex-wrap:wrap; }
@@ -295,22 +307,22 @@
     </nav>
     <div class="global">
       <label class="switch-label" title="Mute or unmute every peon-ping sound">
-        <span class="switch"><input type="checkbox" id="soundsOn"><span></span></span>
+        <span class="switch"><input type="checkbox" id="soundsOn" autocomplete="off"><span></span></span>
         <span id="soundsText">Sounds on</span>
       </label>
       <div class="vol" title="Volume">
-        <span aria-hidden="true">🔉</span>
-        <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volume">
+        <svg id="volIcon" class="vol-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
+        <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volume" autocomplete="off">
         <output id="volumeOut"></output>
       </div>
     </div>
   </div>
 </header>
-<main id="view"><div class="loading">Loading…</div></main>
+<main id="view"><div class="loading"><span class="spinner"></span> Loading…</div></main>
 <footer>
   <span>peon-ping editor <span id="ver"></span></span>
-  <a href="https://github.com/Ferosima/peon-ping-editor" target="_blank" rel="noopener">GitHub ↗</a>
-  <a href="https://github.com/Ferosima/peon-ping-editor/issues" target="_blank" rel="noopener">Report a problem ↗</a>
+  <a href="https://github.com/shusachenko/peon-ping-editor" target="_blank" rel="noopener">GitHub ↗</a>
+  <a href="https://github.com/shusachenko/peon-ping-editor/issues" target="_blank" rel="noopener">Report a problem ↗</a>
   <a href="https://github.com/PeonPing/peon-ping" target="_blank" rel="noopener">peon-ping ↗</a>
   <a href="https://openpeon.com/packs" target="_blank" rel="noopener">Sound packs ↗</a>
 </footer>
@@ -376,6 +388,23 @@ function switchEl(checked, onchange, label) {
   return el('span', { className: 'switch' }, input, el('span'));
 }
 
+// A button that does slow work shows a spinner and cannot be pressed twice
+async function busy(btn, work) {
+  if (!btn || btn.dataset.busy) return;
+  const before = [...btn.childNodes];
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  btn.replaceChildren(el('span', { className: 'spinner' }), ' ', btn.textContent.trim());
+  try {
+    return await work();
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.replaceChildren(...before); }
+    delete btn.dataset.busy;
+  }
+}
+const busyClick = (work) => (e) => busy(e.currentTarget, () => work(e));
+const loadingBlock = (text = 'Loading…') => el('div', { className: 'loading' }, el('span', { className: 'spinner' }), ' ', text);
+
 /* ---------- audio ---------- */
 const player = { audio: null, btn: null };
 function stopAudio() {
@@ -429,6 +458,7 @@ function renderGlobal() {
   document.body.classList.toggle('muted', !s.sounds_on);
   $('#volume').value = Math.round(s.volume * 100);
   $('#volumeOut').textContent = Math.round(s.volume * 100) + '%';
+  drawVolumeIcon(s.sounds_on ? s.volume : 0);
 }
 $('#soundsOn').onchange = async (e) => {
   const on = e.target.checked;
@@ -438,7 +468,13 @@ $('#soundsOn').onchange = async (e) => {
   if (ok) store.status.sounds_on = on;
   renderGlobal();
 };
-$('#volume').oninput = (e) => ($('#volumeOut').textContent = e.target.value + '%');
+$('#volume').oninput = (e) => { $('#volumeOut').textContent = e.target.value + '%'; drawVolumeIcon(store.status.sounds_on ? e.target.value / 100 : 0); };
+
+// Speaker with 0–2 waves, or a cross when muted / at zero
+function drawVolumeIcon(level) {
+  const waves = level <= 0 ? '<path d="M16 9l5 6M21 9l-5 6"/>' : level < 0.5 ? '<path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/>' : '<path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path d="M18 7a7 7 0 0 1 0 10"/>';
+  $('#volIcon').innerHTML = '<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor" stroke="none"/>' + waves;
+}
 $('#volume').onchange = async (e) => {
   const volume = Number(e.target.value) / 100;
   if (done(await post('/api/volume', { volume }))) {
@@ -464,13 +500,13 @@ function viewPacks() {
     for (const id of p.used_by.filter((u) => u !== 'default')) chips.push(el('span', { className: 'chip', textContent: toolName(id) }));
     return el('div', { className: 'card pack-card' },
       el('div', { className: 'top' },
-        playBtn(() => sampleOf(p.name), 'Play a sample'),
+        Object.assign(playBtn(() => sampleOf(p.name), 'Play a sample'), { disabled: !p.sound_count }),
         el('div', {}, el('div', { className: 'name', textContent: p.display_name }), el('div', { className: 'small dim', textContent: p.name + ' · ' + p.sound_count + ' sounds' }))),
       chips.length ? el('div', { className: 'chips' }, chips) : el('div', { className: 'small dim', textContent: 'Not used by any tool' }),
       el('div', { className: 'bottom' },
         el('a', { className: 'btn sm primary', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds', style: 'text-decoration:none' }),
-        p.name !== def ? el('button', { className: 'btn sm', textContent: 'Make default', onclick: () => makeDefault(p.name) }) : null,
-        p.name !== def ? el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: () => removePack(p.name, p.display_name) }) : null));
+        p.name !== def ? el('button', { className: 'btn sm', textContent: 'Make default', onclick: busyClick(() => makeDefault(p.name)) }) : null,
+        p.name !== def ? Object.assign(el('button', { className: 'icon-btn', title: 'Remove ' + p.display_name, onclick: removeClick(p.name, p.display_name) }), { innerHTML: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>' }) : null));
   });
   cards.push(createCard());
   cards.push(el('a', { className: 'card pack-card add', href: '#/browse' }, el('div', { style: 'font-size:24px' }, '＋'), el('div', {}, 'Get more packs'), el('div', { className: 'small' }, '370+ in the registry')));
@@ -511,7 +547,7 @@ function createCard() {
     title.oninput = () => { if (!idTouched) id.value = uniqueSlug(title.value); };
     id.oninput = () => (idTouched = true);
     const from = el('select', {}, el('option', { value: '', textContent: 'Empty pack' }), store.packs.map((p) => el('option', { value: p.name, textContent: 'Copy of ' + p.display_name })));
-    const go = el('button', { className: 'btn primary', textContent: 'Create', onclick: () => createPack({ name: id.value || uniqueSlug(title.value), display_name: title.value, from: from.value }) });
+    const go = el('button', { className: 'btn primary', textContent: 'Create', onclick: busyClick(() => createPack({ name: id.value || uniqueSlug(title.value), display_name: title.value, from: from.value })) });
     card.className = 'card pack-card';
     card.onclick = card.onkeydown = null;
     card.replaceChildren(el('div', { className: 'create-form' },
@@ -535,7 +571,7 @@ async function viewTools() {
     const sel = el('select');
     if (withDefault) sel.append(el('option', { value: '', textContent: 'Default — ' + packTitle(t.default_pack) }));
     for (const p of store.packs) sel.append(el('option', { value: p.name, textContent: p.display_name }));
-    if (selected && !store.packs.some((p) => p.name === selected)) sel.append(el('option', { value: selected, textContent: selected + ' (not installed)' }));
+    if (selected && !store.packs.some((p) => p.name === selected)) sel.append(el('option', { value: selected, textContent: selected + ' — removed, plays the default' }));
     sel.value = selected;
     return sel;
   };
@@ -560,9 +596,9 @@ async function viewTools() {
 
   if (t.known.length) {
     const sel = el('select', {}, t.known.map((k) => el('option', { value: k.id, textContent: k.name })));
-    const add = el('button', { className: 'btn', textContent: 'Add tool', onclick: async () => {
+    const add = el('button', { className: 'btn', textContent: 'Add tool', onclick: busyClick(async () => {
       if (done(await post('/api/tools', { tool: sel.value, pack: t.default_pack }))) { await refreshCore(); route(); }
-    } });
+    }) });
     rows.push(el('div', { className: 'tool' }, el('div', { className: 'who' }, el('div', { className: 't dim', textContent: 'Another tool' })), sel, add));
   }
 
@@ -580,23 +616,23 @@ async function viewTools() {
     return el('div', { className: 'tool' },
       el('div', { className: 'who' }, el('div', { className: 't mono', textContent: r.pattern })),
       playBtn(() => sampleOf(sel.value), 'Play a sample'), sel,
-      el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: async () => { if (done(await post('/api/folders/unbind', { pattern: r.pattern }), 'Removed ' + r.pattern)) await refreshCore(); route(); } }));
+      el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: busyClick(async () => { if (done(await post('/api/folders/unbind', { pattern: r.pattern }), 'Removed ' + r.pattern)) await refreshCore(); route(); }) }));
   });
   if (!folderRows.length) folderRows.push(el('div', { className: 'empty-row', textContent: 'No folder rules yet.' }));
   const newFolder = folderInput('Folder, e.g. ~/work/api or ~/work/*');
   const newFolderPack = packOptions(t.default_pack, false);
-  folderRows.push(el('div', { className: 'add-row' }, newFolder, newFolderPack, el('button', { className: 'btn', textContent: 'Add', onclick: async () => {
+  folderRows.push(el('div', { className: 'add-row' }, newFolder, newFolderPack, el('button', { className: 'btn', textContent: 'Add', onclick: busyClick(async () => {
     if (done(await post('/api/folders/bind', { pattern: newFolder.value, pack: newFolderPack.value }), newFolder.value + ' → ' + packTitle(newFolderPack.value))) { await refreshCore(); route(); }
-  } })));
+  }) })));
 
   const silentRows = f.silenced.map((pattern) => el('div', { className: 'tool' },
     el('div', { className: 'who' }, el('div', { className: 't mono', textContent: pattern })),
-    el('button', { className: 'btn sm', textContent: 'Unsilence', onclick: async () => { done(await post('/api/folders/silence', { pattern, silenced: false }), pattern + ' plays sounds again'); route(); } })));
+    el('button', { className: 'btn sm', textContent: 'Unsilence', onclick: busyClick(async () => { done(await post('/api/folders/silence', { pattern, silenced: false }), pattern + ' plays sounds again'); route(); }) })));
   if (!silentRows.length) silentRows.push(el('div', { className: 'empty-row', textContent: 'Nothing silenced.' }));
   const newSilent = folderInput('Folder to keep quiet, e.g. ~/Downloads');
-  silentRows.push(el('div', { className: 'add-row' }, newSilent, el('button', { className: 'btn', textContent: 'Silence', onclick: async () => {
+  silentRows.push(el('div', { className: 'add-row' }, newSilent, el('button', { className: 'btn', textContent: 'Silence', onclick: busyClick(async () => {
     if (done(await post('/api/folders/silence', { pattern: newSilent.value, silenced: true }), newSilent.value + ' silenced')) route();
-  } })));
+  }) })));
 
   return [
     el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'Which pack plays where' }), el('p', { textContent: 'Give each coding tool and each project its own voice.' }))),
@@ -671,8 +707,8 @@ async function viewPack(name) {
     el('div', { className: 'page-head' },
       el('div', {}, el('h1', { textContent: p.display_name }), el('p', {}, el('span', { className: 'mono', textContent: p.name }), chips.length ? ' · ' : '', ...chips.flatMap((c) => [c, ' ']))),
       el('div', { className: 'actions' },
-        p.custom ? null : el('button', { className: 'btn', textContent: 'Make it your own', title: 'Copy this pack so you can add, upload, rename and delete sounds', onclick: () => createPack({ name: uniqueSlug(name + '-mine'), display_name: p.display_name + ' (mine)', from: name }) }),
-        isDefault ? null : el('button', { className: 'btn', textContent: 'Make default', onclick: () => makeDefault(name) }))),
+        p.custom ? null : el('button', { className: 'btn', textContent: 'Make it your own', title: 'Copy this pack so you can add, upload, rename and delete sounds', onclick: busyClick(() => createPack({ name: uniqueSlug(name + '-mine'), display_name: p.display_name + ' (mine)', from: name })) }),
+        isDefault ? null : el('button', { className: 'btn', textContent: 'Make default', onclick: busyClick(() => makeDefault(name)) }))),
     el('div', { className: 'toolbar' }, search, onlyOn, el('span', { className: 'small dim', textContent: 'Tip: drag sounds to reorder them or move them to another event; ⇄ moves without dragging' })),
     list,
   ];
@@ -700,7 +736,7 @@ function renderEvents(p, q, only) {
       }, 'Event ' + eventTitle(cat.name)),
       el('div', {}, el('div', { className: 't', textContent: eventTitle(cat.name) }), el('div', { className: 'small dim' }, (EVENTS[cat.name] || {}).hint || cat.hint, ' · ', el('span', { className: 'mono', textContent: cat.name }))),
       el('span', { className: 'count', textContent: cat.sounds.length ? on + ' of ' + cat.sounds.length + ' on' : '' }),
-      cat.sounds.length ? el('button', { className: 'btn sm ghost', textContent: on === cat.sounds.length ? 'Turn all off' : 'Turn all on', onclick: () => setAll(cat, on !== cat.sounds.length) }) : null,
+      cat.sounds.length ? el('button', { className: 'btn sm ghost', textContent: on === cat.sounds.length ? 'Turn all off' : 'Turn all on', onclick: busyClick(() => setAll(cat, on !== cat.sounds.length)) }) : null,
       p.custom ? el('button', { className: 'btn sm', textContent: '＋ Add sound', onclick: () => toggleAddPanel(section, head, p, cat) }) : null);
     section.append(head);
     if (!cat.category_enabled) section.append(offBanner());
@@ -731,7 +767,7 @@ function toggleAddPanel(section, head, p, cat) {
       const zone = el('div', { className: 'drop-zone', textContent: 'Drop audio files here or click to choose — WAV, MP3, OGG, M4A or AIFF, up to 5 MB each' });
       const send = async (files) => {
         for (const f of files) {
-          zone.textContent = 'Uploading ' + f.name + '…';
+          zone.replaceChildren(el('span', { className: 'spinner' }), ' Uploading ' + f.name + '…');
           const label = f.name.replace(/\.[^.]+$/, '');
           const res = await fetch('/api/upload?' + new URLSearchParams({ pack: p.name, category: cat.name, name: f.name, label }), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: f });
           let data;
@@ -751,7 +787,7 @@ function toggleAddPanel(section, head, p, cat) {
     const others = store.packs.filter((x) => x.name !== p.name);
     const packSel = el('select', {}, others.map((x) => el('option', { value: x.name, textContent: x.display_name })));
     const search = el('input', { type: 'search', placeholder: 'Find a sound…' });
-    const picker = el('div', { className: 'picker' }, el('div', { className: 'empty-row', textContent: 'Loading…' }));
+    const picker = el('div', { className: 'picker' }, loadingBlock());
     panel.append(el('div', { className: 'row' }, packSel, search), picker);
     let sounds = [];
     const list = () => {
@@ -761,9 +797,9 @@ function toggleAddPanel(section, head, p, cat) {
         el('div', { className: 'pick' }, playBtn(() => localSrc(packSel.value, x.path)),
           el('div', { className: 'info' }, el('div', { className: 'label', textContent: x.label || x.file }), el('div', { className: 'small dim', textContent: x.file + ' · ' + x.events })),
           have.has(x.file) ? el('span', { className: 'small dim', textContent: 'Added' }) :
-            el('button', { className: 'btn sm primary', textContent: 'Add', onclick: async () => {
-              if (done(await post('/api/sounds/add', { pack: p.name, category: cat.name, from_pack: packSel.value, from_path: x.path }), 'Added ' + (x.label || x.file))) route();
-            } })));
+            el('button', { className: 'btn sm primary', textContent: 'Add', onclick: busyClick(async () => {
+              if (done(await post('/api/sounds/add', { pack: p.name, category: cat.name, from_pack: packSel.value, from_path: x.path }), 'Added ' + (x.label || x.file))) await route();
+            }) })));
       picker.replaceChildren(...(rows.length ? rows : [el('div', { className: 'empty-row', textContent: 'No sounds here.' })]));
     };
     const load = async () => {
@@ -888,12 +924,9 @@ async function move(sound, from, to, before = '') {
 }
 
 async function setAll(cat, enabled) {
-  for (const s of cat.sounds) {
-    if (s.enabled === enabled) continue;
-    const data = await post('/api/toggle', { pack: store.pack.name, category: cat.name, file: s.file, enabled });
-    if (!done(data)) break;
-  }
-  route();
+  const files = cat.sounds.filter((s) => s.enabled !== enabled).map((s) => s.file);
+  done(await post('/api/toggle-many', { pack: store.pack.name, category: cat.name, files, enabled }));
+  await route();
 }
 
 async function makeDefault(name) {
@@ -901,8 +934,13 @@ async function makeDefault(name) {
   route();
 }
 
-async function removePack(name, title) {
+// Ask first, then show the spinner while peon-ping deletes the files
+const removeClick = (name, title) => (e) => {
   if (!confirm('Remove “' + title + '”? Its sound files are deleted; you can install it again from Get packs.')) return;
+  busy(e.currentTarget, () => removePack(name, title));
+};
+
+async function removePack(name, title) {
   const data = await post('/api/remove', { pack: name });
   if (done(data, 'Removed ' + title)) {
     await refreshCore();
@@ -981,7 +1019,7 @@ function renderEntry(p) {
     act.append(el('button', { className: 'btn', disabled: true }, el('span', { className: 'spinner' }), ' Installing'));
   } else if (p.installed) {
     act.append(el('a', { className: 'btn sm', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds', style: 'text-align:center;text-decoration:none' }));
-    if (!p.is_default) act.append(el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: () => removePack(p.name, p.display_name) }));
+    if (!p.is_default) act.append(el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: removeClick(p.name, p.display_name) }));
   } else {
     act.append(el('button', { className: 'btn primary', textContent: 'Install', onclick: () => install(p) }));
   }
@@ -1148,11 +1186,9 @@ async function viewNotifications() {
   const enabled = el('label', { className: 'switch-label' },
     switchEl(n.enabled, async (input) => { input.disabled = true; if (await saveNotif({ enabled: input.checked }, input.checked ? 'Pop-ups on' : 'Pop-ups off')) rerender(); else input.checked = !input.checked; input.disabled = false; }, 'Show pop-ups'),
     'Show pop-ups');
-  const test = el('button', { className: 'btn primary', textContent: 'Send test', disabled: !n.enabled, onclick: async () => {
-    test.disabled = true;
+  const test = el('button', { className: 'btn primary', textContent: 'Send test', disabled: !n.enabled, onclick: busyClick(async () => {
     done(await post('/api/notifications/test', {}), 'Test sent');
-    test.disabled = false;
-  } });
+  }) });
 
   // Load the phone card first: the preview draws into the page once it is on screen
   const phone = await phoneCard();
@@ -1187,7 +1223,7 @@ async function phoneCard() {
         if (done(await post('/api/mobile/enabled', { on: input.checked }), input.checked ? 'Phone pushes on' : 'Phone pushes off')) m.enabled = input.checked; else input.checked = !input.checked;
         input.disabled = false;
       }, 'Phone notifications');
-      const test = el('button', { className: 'btn', textContent: 'Send test', onclick: async () => { test.disabled = true; done(await post('/api/mobile/test', {}), 'Test push sent'); test.disabled = false; } });
+      const test = el('button', { className: 'btn', textContent: 'Send test', onclick: busyClick(async () => { done(await post('/api/mobile/test', {}), 'Test push sent'); }) });
       card.append(el('div', { className: 'field' }, sw, el('span', { textContent: 'Sending to ' + where })),
         el('div', { className: 'actions' }, test, el('button', { className: 'btn ghost', textContent: 'Change…', onclick: () => { editing.open = true; render(); } })));
       return;
@@ -1212,16 +1248,12 @@ async function phoneCard() {
         fields.append(input('bot_token', 'Bot token', { type: 'password' }), input('chat_id', 'Chat id'));
       }
       const [help, link] = PHONE_HELP[service];
-      const save = el('button', { className: 'btn primary', textContent: 'Save and send a test', onclick: async () => {
+      const save = el('button', { className: 'btn primary', textContent: 'Save and send a test', onclick: busyClick(async () => {
         const body = { service };
         fields.querySelectorAll('[name]').forEach((f) => (body[f.name] = f.value));
-        save.disabled = true;
-        save.textContent = 'Sending…';
         const data = await post('/api/mobile', body);
-        save.disabled = false;
-        save.textContent = 'Save and send a test';
         if (done(data, data.message)) { Object.assign(m, await getJson('/api/mobile')); editing.open = false; render(); }
-      } });
+      }) });
       box.replaceChildren(
         el('div', { className: 'field' }, el('span', { className: 'lbl', textContent: 'Service' }),
           el('div', { className: 'seg' }, ['ntfy', 'pushover', 'telegram'].map((v) => el('button', { className: v === service ? 'on' : '', textContent: v === 'ntfy' ? 'ntfy' : v === 'pushover' ? 'Pushover' : 'Telegram', onclick: () => { service = v; draw(); } })))),
@@ -1429,6 +1461,8 @@ async function route() {
   const keepScroll = hash === route.last;
   const y = window.scrollY;
   route.last = hash;
+  // Re-renders after an action keep the page; a new page that takes a moment shows a spinner
+  const slow = keepScroll ? null : setTimeout(() => { if (seq === routeSeq) $('#view').replaceChildren(loadingBlock()); }, 200);
   try {
     let nodes;
     if (hash.startsWith('#/pack/')) nodes = await viewPack(decodeURIComponent(hash.slice(7)));
@@ -1437,15 +1471,31 @@ async function route() {
     else if (hash.startsWith('#/browse')) nodes = await viewBrowse();
     else if (hash.startsWith('#/notifications')) nodes = await viewNotifications();
     else nodes = viewPacks();
+    clearTimeout(slow);
     if (seq !== routeSeq) return;
     $('#view').replaceChildren(...nodes);
     if (keepScroll) window.scrollTo(0, y);
     else window.scrollTo(0, 0);
   } catch (err) {
+    clearTimeout(slow);
     if (seq === routeSeq) $('#view').replaceChildren(el('div', { className: 'loading', textContent: err.message }));
   }
 }
 window.addEventListener('hashchange', () => { stopAudio(); route(); });
+
+// PeonBar and the peon CLI can mute or change the volume too; pick that up when you come back to the tab
+async function syncStatus() {
+  if (document.hidden || !store.status || document.activeElement === $('#volume')) return;
+  try {
+    const s = await getJson('/api/status');
+    if (s.sounds_on !== store.status.sounds_on || s.volume !== store.status.volume) { store.status = s; renderGlobal(); }
+  } catch {
+    // editor stopped; the next action will say so
+  }
+}
+document.addEventListener('visibilitychange', syncStatus);
+window.addEventListener('focus', syncStatus);
+setInterval(syncStatus, 10000);
 
 refreshCore().then(route).catch((err) => $('#view').replaceChildren(el('div', { className: 'loading', textContent: err.message })));
 </script>

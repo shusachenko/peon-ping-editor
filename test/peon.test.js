@@ -358,3 +358,20 @@ test('duplicating a pack copies its sounds into a new pack of your own', () => {
   assert.deepEqual(state.categories.find((c) => c.name === 'task.complete').sounds.map((s) => s.file), ['done.wav']);
   assert.ok(fs.existsSync(path.join(peon.paths.packsDir, 'demo-copy', 'sounds', 'done.wav')));
 });
+
+test('turn a whole event on or off in one write', () => {
+  const { peon, config } = setup();
+  assert.equal(peon.setSounds('demo', 'task.complete', ['done.wav'], false).ok, true);
+  assert.deepEqual(config().disabled_sounds, { demo: { 'task.complete': ['done.wav'] } });
+  assert.equal(peon.setSounds('demo', 'task.complete', ['done.wav'], true).ok, true);
+  assert.equal(config().disabled_sounds, undefined);
+  assert.equal(peon.setSounds('demo', 'task.complete', ['hi.wav'], false).ok, false); // not in that event
+});
+
+test('session-start kinds recorded by peon-ping are not listed as tools', () => {
+  const { peon } = setup();
+  fs.writeFileSync(path.join(peon.paths.peonDir, '.state.json'), JSON.stringify({ recent_ide_sources: { claude: 1, startup: 2, fork: 3, cursor: 4 } }));
+  const ids = peon.toolBindings().tools.map((t) => t.id);
+  assert.ok(!ids.includes('startup') && !ids.includes('fork'));
+  assert.ok(peon.toolBindings().tools.find((t) => t.id === 'cursor').seen);
+});

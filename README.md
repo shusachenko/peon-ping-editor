@@ -7,8 +7,8 @@
 Pick a voice for every AI coding agent, build your own sound packs, style the pop-ups —<br>
 and mute it all from the macOS menu bar. No terminal, no JSON.
 
-[![Release](https://img.shields.io/github/v/release/Ferosima/peon-ping-editor?style=flat-square&color=2f9e5a)](https://github.com/Ferosima/peon-ping-editor/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/Ferosima/peon-ping-editor/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/Ferosima/peon-ping-editor/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/shusachenko/peon-ping-editor?style=flat-square&color=2f9e5a)](https://github.com/shusachenko/peon-ping-editor/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/shusachenko/peon-ping-editor/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/shusachenko/peon-ping-editor/actions/workflows/ci.yml)
 ![macOS](https://img.shields.io/badge/macOS-12%2B-111?style=flat-square&logo=apple)
 ![Node](https://img.shields.io/badge/node-18%2B-3c873a?style=flat-square&logo=node.js&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-blue?style=flat-square)
@@ -31,7 +31,7 @@ and mute it all from the macOS menu bar. No terminal, no JSON.
 ## ⚡ Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Ferosima/peon-ping-editor/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/shusachenko/peon-ping-editor/main/install.sh | bash
 ```
 
 That's it. The editor lands in `~/.peon-editor`, you get a `peon-editor` command, and on macOS **PeonBar** appears in
@@ -142,7 +142,7 @@ file gets a `sha256` like registry packs.
 - `install.sh` runs entirely from a `main()` function, so a cut-off download does nothing; a failed download keeps the
   installed version.
 - PeonBar is built locally when Xcode or the Command Line Tools are present, otherwise the universal app is downloaded
-  from the [latest release](https://github.com/Ferosima/peon-ping-editor/releases/latest).
+  from the [latest release](https://github.com/shusachenko/peon-ping-editor/releases/latest).
 - It is started at login by `~/Library/LaunchAgents/com.peonping.peonbar.plist` (shown as *PeonBar* in Login Items).
 - **Check for Updates** compares `package.json` on GitHub with the installed one and re-runs the installer in its own
   process group, so it survives PeonBar being replaced.
@@ -197,7 +197,7 @@ are macOS-only. Windows isn't supported yet.
 ## 🧑‍💻 Development
 
 ```bash
-git clone https://github.com/Ferosima/peon-ping-editor && cd peon-ping-editor
+git clone https://github.com/shusachenko/peon-ping-editor && cd peon-ping-editor
 npm start          # run the editor from the checkout
 npm test           # node:test, no dependencies
 bash install.sh    # install this checkout instead of downloading

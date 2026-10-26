@@ -13,8 +13,8 @@ jobs:
   release:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm test
@@ -26,7 +26,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" PeonBar.zip \
-            --title "$GITHUB_REF_NAME" \
-            --notes "Install or update: \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | bash\`" \
-            --verify-tag
+          # The release may already exist (made on github.com, or a re-run): then only (re)upload the app
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" PeonBar.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" PeonBar.zip \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Install or update: \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | bash\`" \
+              --verify-tag
+          fi

@@ -19,7 +19,7 @@ let safeSlug = { (v: String?, fallback: String) -> String in
     guard let v = v, v.range(of: "^[A-Za-z0-9._/-]+$", options: .regularExpression) != nil else { return fallback }
     return v
 }
-let updateRepo = safeSlug(defaults.string(forKey: "repo"), "Ferosima/peon-ping-editor")
+let updateRepo = safeSlug(defaults.string(forKey: "repo"), "shusachenko/peon-ping-editor")
 let updateRef = safeSlug(defaults.string(forKey: "ref"), "main")
 let editorHome = defaults.string(forKey: "editorHome") ?? "\(home)/.peon-editor"
 

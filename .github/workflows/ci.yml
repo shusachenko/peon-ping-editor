@@ -13,8 +13,8 @@ jobs:
         node: [18, 22]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
@@ -28,7 +28,7 @@ jobs:
   menubar:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build PeonBar (universal)
         run: bash menubar/build.sh build --universal
       - run: lipo -archs build/PeonBar.app/Contents/MacOS/PeonBar
