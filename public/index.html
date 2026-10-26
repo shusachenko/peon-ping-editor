@@ -139,6 +139,11 @@
   .add-panel .pick .info { flex:1; min-width:0; }
   .add-panel .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
   .add-panel .row select, .add-panel .row input[type=search] { flex:1 1 200px; }
+  .recorder .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .recorder .row input[type=text] { flex:1 1 240px; }
+  .btn.danger-solid { background:var(--danger); border-color:var(--danger); color:#fff; font-weight:600; }
+  .meter { width:120px; height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
+  .meter span { display:block; height:100%; width:0; background:var(--accent); transition:width .08s; }
   .drop-zone { margin-top:10px; border:2px dashed var(--line); border-radius:10px; padding:18px; text-align:center; color:var(--dim); cursor:pointer; }
   .drop-zone.over { border-color:var(--accent); color:var(--text); }
   footer { width:calc(100% - 32px); max-width:1008px; margin:0 auto; padding:16px 0 24px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
@@ -812,25 +817,198 @@ function renderEvents(p, q, only) {
   return sections;
 }
 
+/* ---------- audio clean-up (recordings and uploads) ---------- */
+// Decode anything the browser can play, then: mono, trim leading/trailing silence, short fades, peak at -1 dBFS,
+// and encode as 16-bit WAV, which afplay always plays. Returns null when the browser cannot decode the file.
+const MAX_SECONDS = 20;
+
+async function decodeAudio(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    return await ctx.decodeAudioData(await blob.arrayBuffer());
+  } catch {
+    return null;
+  } finally {
+    ctx.close();
+  }
+}
+
+function cleanUp(buffer, { trim = true, normalize = true } = {}) {
+  const rate = buffer.sampleRate;
+  const n = buffer.length;
+  const mono = new Float32Array(n);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < n; i++) mono[i] += data[i] / buffer.numberOfChannels;
+  }
+  let peak = 0;
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(mono[i]));
+  let start = 0;
+  let end = n;
+  if (trim && peak > 0) {
+    // 10 ms windows; "sound" is louder than 4% of the peak (about -28 dB) or -48 dBFS, whichever is higher
+    const win = Math.max(1, Math.round(rate * 0.01));
+    const threshold = Math.max(peak * 0.04, 0.004);
+    const loud = (from) => { let sum = 0; for (let i = from; i < Math.min(n, from + win); i++) sum += mono[i] * mono[i]; return Math.sqrt(sum / win) > threshold; };
+    while (start < n && !loud(start)) start += win;
+    while (end > start && !loud(Math.max(0, end - win))) end -= win;
+    start = Math.max(0, start - Math.round(rate * 0.06)); // keep a little air before the first syllable
+    end = Math.min(n, end + Math.round(rate * 0.12));
+    if (end - start < rate * 0.05) { start = 0; end = n; } // nothing above the threshold: keep it all
+  }
+  end = Math.min(end, start + rate * MAX_SECONDS);
+  const out = mono.slice(start, end);
+  const gain = normalize && peak > 0 ? 0.89 / peak : 1; // 0.89 ≈ -1 dBFS
+  const fade = Math.min(Math.round(rate * 0.005), out.length >> 2);
+  for (let i = 0; i < out.length; i++) {
+    let g = gain;
+    if (i < fade) g *= i / fade;
+    if (i >= out.length - fade) g *= (out.length - 1 - i) / fade;
+    out[i] = Math.max(-1, Math.min(1, out[i] * g));
+  }
+  return { samples: out, rate, seconds: out.length / rate, trimmed: (n - out.length) / rate };
+}
+
+function encodeWav({ samples, rate }) {
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v = new DataView(buf);
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, samples[i] < 0 ? samples[i] * 0x8000 : samples[i] * 0x7fff, true);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+async function uploadSound(p, cat, blob, name, label) {
+  const res = await fetch('/api/upload?' + new URLSearchParams({ pack: p.name, category: cat.name, name, label }), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob });
+  try { return await res.json(); } catch { return { ok: false, message: res.status === 413 ? 'Keep sounds under 5 MB' : 'Upload failed' }; }
+}
+
+// Recorder UI: record → stop → listen → save. Uses MediaRecorder; the result is cleaned up and saved as WAV.
+function recorder(p, cat) {
+  const box = el('div', { className: 'recorder' });
+  let chunks = [];
+  let rec = null;
+  let stream = null;
+  let take = null;
+  let timer = null;
+  let started = 0;
+  const label = el('input', { type: 'text', placeholder: 'Name, e.g. “Done, boss!”', maxLength: 80 });
+  const cleanBox = el('input', { type: 'checkbox', checked: true });
+  const status = el('span', { className: 'small dim' });
+  const meter = el('div', { className: 'meter' }, el('span'));
+  let meterCtx = null;
+  const stopAll = () => {
+    clearInterval(timer);
+    stream && stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+    if (meterCtx) { meterCtx.close().catch(() => {}); meterCtx = null; }
+  };
+
+  const draw = () => {
+    if (rec && rec.state === 'recording') {
+      box.replaceChildren(el('div', { className: 'row' },
+        el('button', { className: 'btn danger-solid', textContent: '■ Stop', onclick: () => rec.stop() }), meter, status));
+      return;
+    }
+    if (take) {
+      const play = playBtn(() => take.url, 'Listen');
+      const save = el('button', { className: 'btn primary', textContent: 'Save to ' + eventTitle(cat.name), onclick: busyClick(async () => {
+        const blob = cleanBox.checked ? take.clean : take.raw;
+        const name = (slugify(label.value) || 'recording') + '.wav';
+        if (done(await uploadSound(p, cat, blob, name, label.value.trim() || 'My recording'), 'Saved')) { stopAll(); await route(); }
+      }) });
+      cleanBox.onchange = () => { take.url = URL.createObjectURL(cleanBox.checked ? take.clean : take.raw); };
+      box.replaceChildren(
+        el('div', { className: 'row' }, play, el('span', { className: 'small dim', textContent: take.info }), el('button', { className: 'btn ghost', textContent: 'Record again', onclick: () => { take = null; start(); } })),
+        el('div', { className: 'row' }, label),
+        el('label', { className: 'switch-label small', style: 'margin-top:8px' }, cleanBox, 'Trim silence and even out volume'),
+        el('div', { className: 'row' }, save));
+      return;
+    }
+    box.replaceChildren(el('div', { className: 'row' },
+      el('button', { className: 'btn danger-solid', textContent: '● Record', onclick: start }),
+      el('span', { className: 'small dim', textContent: 'Up to ' + MAX_SECONDS + ' seconds. Your browser asks for the microphone the first time.' })));
+  };
+
+  async function start() {
+    if (!navigator.mediaDevices || !window.MediaRecorder) { toast('This browser cannot record audio', { error: true }); return; }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
+    } catch (err) {
+      toast(err.name === 'NotAllowedError' ? 'Microphone access was blocked. Allow it in the browser’s site settings.' : 'No microphone found', { error: true });
+      return;
+    }
+    chunks = [];
+    rec = new MediaRecorder(stream);
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      stopAll();
+      const raw = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+      status.textContent = 'Processing…';
+      const buffer = await decodeAudio(raw);
+      if (!buffer) { toast('Could not read the recording', { error: true }); rec = null; draw(); return; }
+      const cleaned = cleanUp(buffer);
+      const plain = cleanUp(buffer, { trim: false, normalize: false });
+      const clean = encodeWav(cleaned);
+      take = { raw: encodeWav(plain), clean, url: URL.createObjectURL(clean), info: cleaned.seconds.toFixed(1) + ' s' + (cleaned.trimmed > 0.05 ? ' · ' + cleaned.trimmed.toFixed(1) + ' s of silence trimmed' : '') };
+      rec = null;
+      draw();
+    };
+    // Live level meter so you can see the mic works
+    meterCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = meterCtx.createAnalyser();
+    meterCtx.createMediaStreamSource(stream).connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    started = Date.now();
+    rec.start();
+    draw();
+    timer = setInterval(() => {
+      analyser.getByteTimeDomainData(data);
+      let peak = 0;
+      for (const x of data) peak = Math.max(peak, Math.abs(x - 128) / 128);
+      meter.firstChild.style.width = Math.min(100, peak * 140) + '%';
+      const secs = (Date.now() - started) / 1000;
+      status.textContent = secs.toFixed(1) + ' s';
+      if (secs >= MAX_SECONDS && rec && rec.state === 'recording') rec.stop();
+    }, 80);
+  }
+
+  draw();
+  return box;
+}
+
 function toggleAddPanel(section, head, p, cat) {
   const existing = section.querySelector('.add-panel');
   if (existing) { existing.remove(); return; }
   const panel = el('div', { className: 'add-panel' });
   let mode = 'pack';
   const draw = async () => {
-    const seg = el('div', { className: 'seg' }, [['pack', 'From a pack'], ['upload', 'Upload a file']].map(([v, t]) =>
+    const seg = el('div', { className: 'seg' }, [['pack', 'From a pack'], ['upload', 'Upload a file'], ['record', 'Record']].map(([v, t]) =>
       el('button', { className: v === mode ? 'on' : '', textContent: t, onclick: () => { mode = v; draw(); } })));
     panel.replaceChildren(seg);
+    if (mode === 'record') {
+      panel.append(recorder(p, cat));
+      return;
+    }
     if (mode === 'upload') {
+      const clean = el('input', { type: 'checkbox', checked: true });
       const input = el('input', { type: 'file', accept: '.wav,.mp3,.ogg,.m4a,.aiff,.aif,audio/*', multiple: true, style: 'display:none' });
       const zone = el('div', { className: 'drop-zone', textContent: 'Drop audio files here or click to choose — WAV, MP3, OGG, M4A or AIFF, up to 5 MB each' });
       const send = async (files) => {
         for (const f of files) {
-          zone.replaceChildren(el('span', { className: 'spinner' }), ' Uploading ' + f.name + '…');
+          zone.replaceChildren(el('span', { className: 'spinner' }), ' ' + (clean.checked ? 'Cleaning up' : 'Uploading') + ' ' + f.name + '…');
           const label = f.name.replace(/\.[^.]+$/, '');
-          const res = await fetch('/api/upload?' + new URLSearchParams({ pack: p.name, category: cat.name, name: f.name, label }), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: f });
-          let data;
-          try { data = await res.json(); } catch { data = { ok: false, message: 'Upload failed' }; }
+          let body = f;
+          let name = f.name;
+          if (clean.checked) {
+            // Cleaned files are re-encoded as WAV; if the browser cannot decode one, the original goes up as is
+            const buffer = await decodeAudio(f);
+            if (buffer) { body = encodeWav(cleanUp(buffer)); name = label + '.wav'; }
+          }
+          const data = await uploadSound(p, cat, body, name, label);
           if (!done(data, data.message)) break;
         }
         route();
@@ -840,7 +1018,7 @@ function toggleAddPanel(section, head, p, cat) {
       zone.ondragover = (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); zone.classList.add('over'); } };
       zone.ondragleave = () => zone.classList.remove('over');
       zone.ondrop = (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('over'); send([...e.dataTransfer.files]); };
-      panel.append(zone, input);
+      panel.append(zone, input, el('label', { className: 'switch-label small', style: 'margin-top:10px' }, clean, 'Trim silence and even out volume (saved as WAV)'));
       return;
     }
     const others = store.packs.filter((x) => x.name !== p.name);
