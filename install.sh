@@ -36,7 +36,8 @@ die()  { printf '\033[1;31mx\033[0m %s\n' "$*" >&2; exit 1; }
 # Copied verbatim into the launcher, so the installer and PeonBar agree on which node to use.
 find_node() {
   local c
-  for c in "${PEON_EDITOR_NODE:-}" "$(command -v node 2>/dev/null || true)" /opt/homebrew/bin/node /usr/local/bin/node \
+  # Every node on PATH in order (an old one in /usr/local/bin must not hide a newer nvm one), then the usual places
+  for c in "${PEON_EDITOR_NODE:-}" $(type -ap node 2>/dev/null) /opt/homebrew/bin/node /usr/local/bin/node \
            "$HOME/.volta/bin/node" $(ls -d "$HOME"/.nvm/versions/node/*/bin/node 2>/dev/null | sort -V -r) \
            $(ls -d "$HOME"/.local/share/fnm/node-versions/*/installation/bin/node 2>/dev/null | sort -V -r); do
     # process.exit needs a number: Node 20+ throws on a boolean
@@ -110,10 +111,11 @@ write_launcher() {
     echo '#!/bin/bash'
     echo '# peon-ping-editor launcher (written by the installer).'
     echo '# Finds node on its own and fixes PATH, because PeonBar and launchd start it with a bare PATH.'
+    declare -f find_node
+    # Find node with the PATH we were started with, then widen PATH for peon.sh (python3, curl)
+    echo 'NODE="$(find_node)" || { echo "peon-editor: Node.js 18+ not found" >&2; exit 1; }'
     echo 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"'
     printf 'export PEON_DIR=%q\n' "$PEON_DIR"
-    declare -f find_node
-    echo 'NODE="$(find_node)" || { echo "peon-editor: Node.js 18+ not found" >&2; exit 1; }'
     printf 'exec "$NODE" %q "$@"\n' "$EDITOR_HOME/app/bin/peon-editor.js"
   } > "$LAUNCHER.new"
   chmod +x "$LAUNCHER.new"

@@ -55,6 +55,12 @@ the menu bar and starts with every login. Open the editor from PeonBar → **Ope
 | 📱 **On your phone** | A push via ntfy, Pushover or Telegram when the agent is done and you've stepped away |
 | 🛒 **370+ packs** | Browse, preview and install from the peon-ping registry, filtered by language |
 | 🍎 **Menu-bar switch** | Mute, volume, default pack and one-click updates; closing a banner stops its sound |
+| 🩺 **Health** | Finds why it's silent — hooks, mute, volume, missing files, removed packs — with a fix button, a test sound and a history of what played and why not |
+| 🎙 **Record your own** | Record lines straight into your pack; recordings and uploads get silence trimmed and volume evened out |
+| 📦 **Share packs** | Export a pack as one `.peonpack.zip`, import one a teammate sent |
+| ⏱ **Mute for a while** | 30 min, 1 hour, 2 hours or until tomorrow morning — and a global ⌃⌥⌘M hotkey |
+| 🧭 **Setup guide** | Four quick steps for first-time users |
+| 🌍 **English / Українська** | Follows your browser, switch in the footer |
 
 Everything stays on your Mac: the editor listens on `127.0.0.1` only and has zero dependencies.
 
@@ -71,7 +77,7 @@ Everything stays on your Mac: the editor listens on `127.0.0.1` only and has zer
 </tr>
 <tr>
 <td><img src="docs/quiet.png" alt="Quiet"><p align="center"><b>Quiet</b> — calls, Focus, headphones</p></td>
-<td></td>
+<td><img src="docs/health.png" alt="Health"><p align="center"><b>Health</b> — why it's silent, fixed in one click</p></td>
 </tr>
 </table>
 
@@ -84,6 +90,8 @@ A tiny native menu-bar app that comes with the installer (macOS 12+, Apple silic
 - **Default pack**, **Open pack editor…**, **Start at login**
 - **Check for Updates…** — one click, PeonBar restarts on the new version; it also checks once a day
 - **Stops the sound when you close a banner**, so a long line doesn't keep talking
+- **Mute for…** 30 min, 1 hour, 2 hours or until tomorrow morning — sounds come back on their own
+- **Mute hotkey** ⌃⌥⌘M anywhere (or ⌥⇧⌘M, or off), with a short on-screen "Sounds off / on"
 
 It uses peon-ping's own icon from your install — this repo ships no game artwork.
 
@@ -134,6 +142,30 @@ file gets a `sha256` like registry packs.
   never sent back to the browser.
 - **Stop sound on close:** banners broadcast `com.peonping.dismiss.*` when clicked or closed (not when they time out);
   PeonBar stops the player recorded in `.sound.pid` if it is still `afplay`/`peon-play`.
+</details>
+
+<details>
+<summary><b>Health and history</b></summary>
+
+- Checks peon-ping and Python, the hooks in Claude Code (`~/.claude/settings.json`), Cursor and Copilot CLI, mute,
+  volume, the main events, the default pack, bindings to removed packs, missing sound files, the banner theme,
+  PeonBar, and newer versions of peon-ping and the editor. Fix buttons only touch what the editor manages; anything
+  else is shown as a command to copy.
+- **Play test sound** plays a line from the default pack through `afplay`, even when muted.
+- **Recent events** read peon-ping's own debug log (`peon debug on`, pruned after `debug_retention_days`) and show
+  what each event played — or why it did not: silent folder, muted, a quiet mode, a repeat, a sub-agent, …
+</details>
+
+<details>
+<summary><b>Recording, sharing and timed mutes</b></summary>
+
+- **Recording** uses the browser's `MediaRecorder`. Recordings (and uploads, if you leave the box ticked) are decoded,
+  mixed to mono, trimmed of leading/trailing silence with short fades, normalised to −1 dBFS and saved as 16-bit WAV.
+- **Export** writes `<pack>.peonpack.zip` — `openpeon.json` plus the sound files it uses. **Import** checks the zip
+  (CRCs, sizes, at most 500 files / 50 MB, no `../` paths, real audio only), skips macOS `__MACOSX`/`._` files and
+  adds the pack as one of your own.
+- **Timed mutes** are peon-ping's normal pause plus `.editor-mute-until`; PeonBar and the editor turn sounds back on
+  when the time is up.
 </details>
 
 <details>
