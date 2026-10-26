@@ -734,6 +734,92 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     return { ok: true, message: on ? 'History on' : 'History off' };
   }
 
+  // ---- Share packs as one file ---------------------------------------------------------------
+  // <pack>.peonpack.zip = a regular CESP pack: openpeon.json + sounds/, only the files the manifest uses.
+  function exportPack(pack) {
+    if (!installedPacks().includes(pack)) return null;
+    applyMoves(pack);
+    const manifest = JSON.parse(JSON.stringify(loadManifest(pack) || {}));
+    delete manifest[PATCH_MARKER];
+    const files = new Map();
+    for (const cat of Object.values(manifest.categories || {})) {
+      cat.sounds = (cat.sounds || []).filter((sound) => {
+        const real = resolveAudio(pack, String(sound.file || ''), { categories: { x: { sounds: [sound] } } });
+        if (!real) return false; // never downloaded: leave it out rather than ship a broken entry
+        const name = `sounds/${basename(real)}`;
+        files.set(name, real);
+        sound.file = name;
+        return true;
+      });
+    }
+    manifest.x_exported_by = `peon-ping editor ${require('../package.json').version}`;
+    const entries = [{ name: `${pack}/openpeon.json`, data: Buffer.from(JSON.stringify(manifest, null, 2) + '\n') }];
+    for (const [name, real] of files) entries.push({ name: `${pack}/${name}`, data: fs.readFileSync(real) });
+    return { filename: `${pack}.peonpack.zip`, data: require('./zip').writeZip(entries) };
+  }
+
+  function importPack(buf) {
+    let entries;
+    try {
+      entries = require('./zip').readZip(buf);
+    } catch (err) {
+      return { ok: false, message: err.message };
+    }
+    // Ignore macOS metadata (Finder/ditto add __MACOSX/ and ._ files) and allow one wrapping folder
+    entries = entries.filter((e) => !e.name.startsWith('__MACOSX/') && !basename(e.name).startsWith('._') && basename(e.name) !== '.DS_Store');
+    const manifestEntry = entries.find((e) => /(^|\/)(openpeon|manifest)\.json$/.test(e.name) && e.name.split('/').length <= 2);
+    if (!manifestEntry) return { ok: false, message: 'No openpeon.json in the file — is it a peon-ping pack?' };
+    const root = manifestEntry.name.includes('/') ? manifestEntry.name.slice(0, manifestEntry.name.indexOf('/') + 1) : '';
+    let manifest;
+    try {
+      manifest = JSON.parse(manifestEntry.data.toString('utf8'));
+    } catch {
+      return { ok: false, message: 'openpeon.json is not valid JSON' };
+    }
+    const sounds = new Map();
+    for (const e of entries) {
+      if (!e.name.startsWith(root)) continue;
+      const rel = e.name.slice(root.length);
+      if (rel.startsWith('/') || rel.includes('\\') || rel.split('/').includes('..')) return { ok: false, message: `Unsafe path in the archive: ${e.name}` };
+      if (rel === basename(manifestEntry.name)) continue;
+      if (!AUDIO_EXT.includes(path.extname(rel).toLowerCase())) continue;
+      if (!looksLikeAudio(e.data)) return { ok: false, message: `${rel} is not an audio file` };
+      sounds.set(rel, e.data);
+    }
+    // Pack id: the manifest's name, made safe and unique
+    let base = String(manifest.name || root.replace(/\/$/, '') || 'imported').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || 'imported';
+    if (base.length < 2) base += '-pack';
+    let name = base;
+    for (let i = 2; fs.existsSync(path.join(packsDir, name)); i++) name = `${base}-${i}`;
+    const target = path.join(packsDir, name);
+    fs.mkdirSync(path.join(target, 'sounds'), { recursive: true });
+    const categories = {};
+    let count = 0;
+    for (const [cat, data] of Object.entries(manifest.categories || {})) {
+      if (!(cat in CATEGORY_HINTS)) continue;
+      categories[cat] = { sounds: [] };
+      for (const sound of (data && data.sounds) || []) {
+        const want = String(sound.file || '');
+        const bytes = sounds.get(want) || sounds.get(`sounds/${basename(want)}`);
+        if (!bytes) continue;
+        const stored = storeSound(name, slugFile(basename(want)), bytes);
+        categories[cat].sounds.push({ file: stored.file, label: String(sound.label || '').slice(0, 120), sha256: stored.hash });
+        count++;
+      }
+    }
+    if (!count) {
+      fs.rmSync(target, { recursive: true, force: true });
+      return { ok: false, message: 'The pack has no sounds this editor can use' };
+    }
+    const title = String(manifest.display_name || name).slice(0, 60);
+    writeJson(path.join(target, 'openpeon.json'), {
+      cesp_version: '1.0', name, display_name: title, version: String(manifest.version || '1.0.0'),
+      author: manifest.author || { name: 'unknown' }, license: String(manifest.license || 'personal'), language: String(manifest.language || 'en'),
+      categories, [CUSTOM_MARKER]: true,
+    });
+    return { ok: true, name, message: `Imported ${title} (${count} sound${count === 1 ? '' : 's'})` };
+  }
+
   // Our own key in peon-ping's config.json; PeonBar reads it (peon-ping ignores keys it does not know)
   function setStopSoundOnClose(on) {
     const cfg = loadConfig();
@@ -1164,6 +1250,8 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     createPack,
     setStopSoundOnClose,
     setSounds,
+    exportPack,
+    importPack,
     historyState,
     setHistory,
     expireMute,

@@ -12,7 +12,9 @@ function setup() {
   const peonDir = path.join(root, 'peon-ping');
   const packDir = path.join(peonDir, 'packs', 'demo');
   fs.mkdirSync(path.join(packDir, 'sounds'), { recursive: true });
-  for (const f of ['hi.wav', 'done.wav', 'wait.wav']) fs.writeFileSync(path.join(packDir, 'sounds', f), 'RIFF');
+  // Minimal but real WAV headers, so content checks (upload, import) treat them as audio
+  const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVE'), Buffer.alloc(16)]);
+  for (const f of ['hi.wav', 'done.wav', 'wait.wav']) fs.writeFileSync(path.join(packDir, 'sounds', f), wav);
   const manifest = {
     name: 'demo',
     display_name: 'Demo',
@@ -398,4 +400,39 @@ test('timed mute: ends on time, and forgets itself when sounds come back another
   peon.setSoundsOn(false); // plain mute replaces the timed one
   assert.equal(peon.status().mute_until, 0);
   assert.equal(peon.status().sounds_on, false);
+});
+
+test('export a pack to one file and import it back as your own', () => {
+  const { peon } = setup();
+  const { writeZip, readZip } = require('../src/zip');
+  const file = peon.exportPack('demo');
+  assert.equal(file.filename, 'demo.peonpack.zip');
+  const names = readZip(file.data).map((e) => e.name).sort();
+  assert.deepEqual(names, ['demo/openpeon.json', 'demo/sounds/done.wav', 'demo/sounds/hi.wav', 'demo/sounds/wait.wav']);
+
+  const r = peon.importPack(file.data);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(r.name, 'demo-2'); // "demo" is taken
+  const state = peon.packState('demo-2');
+  assert.equal(state.custom, true);
+  assert.deepEqual(state.categories.find((c) => c.name === 'task.complete').sounds.map((s) => s.file), ['done.wav']);
+
+  const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVE'), Buffer.alloc(16)]);
+  const manifest = (sounds) => Buffer.from(JSON.stringify({ name: 'shared', display_name: 'Shared', categories: { 'task.complete': { sounds } } }));
+  // Finder/ditto metadata is ignored, a single wrapping folder is fine
+  const ok = peon.importPack(writeZip([
+    { name: '__MACOSX/shared/._x', data: Buffer.from('meta') },
+    { name: 'shared/._openpeon.json', data: Buffer.from('meta') },
+    { name: 'shared/openpeon.json', data: manifest([{ file: 'sounds/yes.wav', label: 'Yes' }]) },
+    { name: 'shared/sounds/yes.wav', data: wav },
+  ]));
+  assert.equal(ok.ok, true, ok.message);
+  assert.equal(ok.name, 'shared');
+
+  // Refused: path traversal, fake audio, no manifest, not a zip
+  assert.equal(peon.importPack(writeZip([{ name: 'openpeon.json', data: manifest([{ file: '../../evil.wav' }]) }, { name: '../../evil.wav', data: wav }])).ok, false);
+  assert.match(peon.importPack(writeZip([{ name: 'openpeon.json', data: manifest([{ file: 'sounds/x.wav' }]) }, { name: 'sounds/x.wav', data: Buffer.from('#!/bin/sh') }])).message, /not an audio file/);
+  assert.match(peon.importPack(writeZip([{ name: 'readme.txt', data: Buffer.from('hi') }])).message, /No openpeon.json/);
+  assert.equal(peon.importPack(Buffer.from('not a zip at all')).ok, false);
+  assert.ok(!fs.existsSync(path.join(peon.paths.packsDir, '..', 'evil.wav')));
 });

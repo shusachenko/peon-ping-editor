@@ -12,6 +12,7 @@ const AUDIO_TYPES = { '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.ogg': 'audio/
 const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.icns': 'image/x-icns' };
 const MAX_BODY = 64 * 1024;
 const MAX_UPLOAD = 5 * 1024 * 1024 + 1;
+const MAX_IMPORT = 50 * 1024 * 1024;
 const str = (v) => String(v ?? '');
 
 function sendJson(res, status, data) {
@@ -116,6 +117,17 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/export') {
+      const file = peon.exportPack(url.searchParams.get('pack') || '');
+      if (!file) {
+        res.writeHead(404).end();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': file.data.length, 'Content-Disposition': `attachment; filename="${file.filename}"` });
+      res.end(file.data);
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/audio') {
       const file = peon.resolveAudio(url.searchParams.get('pack') || '', url.searchParams.get('path') || '');
       if (!file) {
@@ -160,6 +172,25 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
       '/api/install': (p) => peon.installPack(str(p.pack)),
       '/api/remove': (p) => peon.removePack(str(p.pack)),
     };
+
+    // Pack import: POST /api/import with the .zip as the body
+    if (req.method === 'POST' && url.pathname === '/api/import') {
+      const origin = req.headers.origin;
+      if (origin && !hosts.some((h) => origin === `http://${h}`)) {
+        res.writeHead(403).end();
+        return;
+      }
+      let body;
+      try {
+        body = await readBody(req, MAX_IMPORT);
+      } catch {
+        sendJson(res, 413, { ok: false, message: 'Pack files are limited to 50 MB' });
+        return;
+      }
+      const result = peon.importPack(body);
+      sendJson(res, result.ok ? 200 : 400, result);
+      return;
+    }
 
     // Raw file upload: POST /api/upload?pack=&category=&name=&label= with the audio bytes as the body
     if (req.method === 'POST' && url.pathname === '/api/upload') {

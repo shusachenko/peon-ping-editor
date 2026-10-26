@@ -581,10 +581,30 @@ function viewPacks() {
   });
   cards.push(createCard());
   cards.push(el('a', { className: 'card pack-card add', href: '#/browse' }, el('div', { style: 'font-size:24px' }, '＋'), el('div', {}, 'Get more packs'), el('div', { className: 'small' }, '370+ in the registry')));
+  const fileInput = el('input', { type: 'file', accept: '.zip,application/zip', style: 'display:none', onchange: () => fileInput.files[0] && importFile(fileInput.files[0], importBtn) });
+  const importBtn = el('button', { className: 'btn', textContent: 'Import pack…', title: 'Add a pack someone shared with you (.peonpack.zip)', onclick: () => fileInput.click() });
+  const grid = el('div', { className: 'grid' }, cards);
+  // Dropping a pack file anywhere on the page imports it
+  grid.ondragover = (e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); };
+  grid.ondrop = (e) => { const f = e.dataTransfer.files[0]; if (f) { e.preventDefault(); importFile(f, importBtn); } };
   return [
-    el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'My packs' }), el('p', { textContent: store.packs.length + ' installed. The default pack plays everywhere a tool has no pack of its own.' }))),
-    el('div', { className: 'grid' }, cards),
+    el('div', { className: 'page-head' },
+      el('div', {}, el('h1', { textContent: 'My packs' }), el('p', { textContent: store.packs.length + ' installed. The default pack plays everywhere a tool has no pack of its own.' })),
+      el('div', { className: 'actions' }, importBtn, fileInput)),
+    grid,
   ];
+}
+
+async function importFile(file, btn) {
+  if (!/\.zip$/i.test(file.name)) { toast('Pick a .peonpack.zip file', { error: true }); return; }
+  await busy(btn, async () => {
+    const res = await fetch('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+    let data;
+    try { data = await res.json(); } catch { data = { ok: false, message: res.status === 413 ? 'Pack files are limited to 50 MB' : 'Import failed' }; }
+    if (!done(data, data.message)) return;
+    await refreshCore();
+    location.hash = '#/pack/' + encodeURIComponent(data.name);
+  });
 }
 
 function slugify(text) {
@@ -778,6 +798,7 @@ async function viewPack(name) {
     el('div', { className: 'page-head' },
       el('div', {}, el('h1', { textContent: p.display_name }), el('p', {}, el('span', { className: 'mono', textContent: p.name }), chips.length ? ' · ' : '', ...chips.flatMap((c) => [c, ' ']))),
       el('div', { className: 'actions' },
+        el('a', { className: 'btn', href: '/api/export?pack=' + encodeURIComponent(name), download: name + '.peonpack.zip', textContent: 'Export', title: 'Save this pack as one file to share', style: 'text-decoration:none' }),
         p.custom ? null : el('button', { className: 'btn', textContent: 'Make it your own', title: 'Copy this pack so you can add, upload, rename and delete sounds', onclick: busyClick(() => createPack({ name: uniqueSlug(name + '-mine'), display_name: p.display_name + ' (mine)', from: name })) }),
         isDefault ? null : el('button', { className: 'btn', textContent: 'Make default', onclick: busyClick(() => makeDefault(name)) }))),
     el('div', { className: 'toolbar' }, search, onlyOn, el('span', { className: 'small dim', textContent: 'Tip: drag sounds to reorder them or move them to another event; ⇄ moves without dragging' })),
