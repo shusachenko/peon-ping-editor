@@ -2,6 +2,7 @@
 // All changes go through peon.sh so peon-ping's adapters stay in sync.
 
 import AppKit
+import Carbon.HIToolbox
 
 let home = FileManager.default.homeDirectoryForCurrentUser.path
 // The installer records where peon-ping lives; launchd gives GUI apps no shell environment to read it from
@@ -133,6 +134,19 @@ func stopCurrentSound() {
     kill(pid, SIGTERM)
 }
 
+// Global mute hotkey. Carbon hotkeys need no Accessibility permission. ⌥⌘M is avoided on purpose:
+// many apps use it for "Minimize All".
+struct Hotkey {
+    let id: String
+    let title: String
+    let key: UInt32
+    let mods: UInt32
+}
+let hotkeys = [
+    Hotkey(id: "ctrl-opt-cmd-m", title: "⌃⌥⌘M", key: UInt32(kVK_ANSI_M), mods: UInt32(controlKey | optionKey | cmdKey)),
+    Hotkey(id: "opt-shift-cmd-m", title: "⌥⇧⌘M", key: UInt32(kVK_ANSI_M), mods: UInt32(optionKey | shiftKey | cmdKey)),
+]
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let menu = NSMenu()
@@ -160,6 +174,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         announceFinishedUpdate()
         listenForBannerClose()
+        installHotkeyHandler()
+        applyHotkey()
         // Look for a new version shortly after login, then every few hours (at most once a day)
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.autoCheck() }
         Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in self?.autoCheck() }
@@ -271,6 +287,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         update.target = self
         menu.addItem(update)
+
+        let hk = NSMenuItem(title: "Mute hotkey", action: nil, keyEquivalent: "")
+        let hkMenu = NSMenu()
+        for option in hotkeys {
+            let entry = NSMenuItem(title: option.title + (option.id == hotkeyID && !hotkeyRegistered ? "  (used by another app)" : ""), action: #selector(pickHotkey(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = option.id
+            entry.state = option.id == hotkeyID ? .on : .off
+            hkMenu.addItem(entry)
+        }
+        let off = NSMenuItem(title: "Off", action: #selector(pickHotkey(_:)), keyEquivalent: "")
+        off.target = self
+        off.representedObject = "off"
+        off.state = hotkeyID == "off" ? .on : .off
+        hkMenu.addItem(off)
+        hk.submenu = hkMenu
+        menu.addItem(hk)
 
         let login = NSMenuItem(title: "Start at login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
@@ -436,6 +469,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             DispatchQueue.main.async { NSWorkspace.shared.open(editorURL) }
         }.resume()
+    }
+
+    // MARK: - Hotkey
+
+    var hotkeyRef: EventHotKeyRef?
+    var hotkeyRegistered = false
+    var hotkeyID: String { defaults.string(forKey: "hotkey") ?? hotkeys[0].id }
+
+    func installHotkeyHandler() {
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, _, userData in
+            guard let userData = userData else { return noErr }
+            let me = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
+            DispatchQueue.main.async { me.hotkeyPressed() }
+            return noErr
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
+    }
+
+    func applyHotkey() {
+        if let ref = hotkeyRef { UnregisterEventHotKey(ref); hotkeyRef = nil }
+        hotkeyRegistered = false
+        guard let option = hotkeys.first(where: { $0.id == hotkeyID }) else { return }
+        let hid = EventHotKeyID(signature: OSType(0x5045_4F4E), id: 1) // 'PEON'
+        // Exclusive, so a combination another app already owns fails here instead of firing in both
+        let status = RegisterEventHotKey(option.key, option.mods, hid, GetApplicationEventTarget(), OptionBits(kEventHotKeyExclusive), &hotkeyRef)
+        hotkeyRegistered = status == noErr
+        NSLog("PeonBar hotkey %@: %@", option.title, hotkeyRegistered ? "registered" : "not available (\(status))")
+    }
+
+    @objc func pickHotkey(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        defaults.set(id, forKey: "hotkey")
+        applyHotkey()
+    }
+
+    func hotkeyPressed() {
+        let willMute = !paused
+        toggleSounds()
+        showHUD(willMute ? "Sounds off" : "Sounds on")
+    }
+
+    // A short "Sounds off / on" bubble near the bottom of the screen, like the system volume HUD
+    var hud: NSPanel?
+    func showHUD(_ text: String) {
+        hud?.orderOut(nil)
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        label.textColor = .white
+        label.sizeToFit()
+        let size = NSSize(width: label.frame.width + 40, height: 44)
+        guard let screen = NSScreen.main else { return }
+        let origin = NSPoint(x: screen.frame.midX - size.width / 2, y: screen.visibleFrame.minY + 120)
+        let panel = NSPanel(contentRect: NSRect(origin: origin, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.level = .statusBar
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        let box = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+        box.material = .hudWindow
+        box.state = .active
+        box.wantsLayer = true
+        box.layer?.cornerRadius = 12
+        label.frame.origin = NSPoint(x: 20, y: (size.height - label.frame.height) / 2)
+        box.addSubview(label)
+        panel.contentView = box
+        panel.orderFrontRegardless()
+        hud = panel
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self, weak panel] in
+            guard let panel = panel else { return }
+            NSAnimationContext.runAnimationGroup({ $0.duration = 0.25; panel.animator().alphaValue = 0 }, completionHandler: {
+                panel.orderOut(nil)
+                if self?.hud === panel { self?.hud = nil }
+            })
+        }
     }
 
     // MARK: - Stop the sound when a banner is closed
