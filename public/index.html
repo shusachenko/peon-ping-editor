@@ -143,6 +143,25 @@
   footer a { color:var(--dim); }
   footer a:hover { color:var(--text); }
 
+  /* health */
+  .nav-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:6px; vertical-align:2px; background:var(--warn); }
+  .nav-dot.error { background:var(--danger); }
+  .health-summary { display:flex; align-items:center; gap:12px; padding:14px; margin-bottom:16px; }
+  .health-summary .big { font-size:22px; }
+  .check { display:flex; gap:12px; padding:12px 14px; align-items:flex-start; }
+  .check .icon { width:22px; height:22px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; margin-top:1px; }
+  .check .icon.ok { background:var(--accent); color:var(--accent-text); }
+  .check .icon.warn { background:var(--warn); color:#1b1400; }
+  .check .icon.error { background:var(--danger); }
+  .check .icon.info { background:var(--chip); color:var(--chip-text); }
+  .check .txt { flex:1; min-width:0; }
+  .check .t { font-weight:600; }
+  .check .d { color:var(--dim); font-size:13px; margin-top:2px; overflow-wrap:anywhere; }
+  .check .cmd { display:flex; gap:8px; align-items:center; margin-top:8px; }
+  .check .cmd code { flex:1; min-width:0; overflow-x:auto; white-space:nowrap; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:12px; }
+  .check > .btn { flex:none; }
+  .group-title { margin:20px 0 6px; font-size:13px; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; }
+
   /* editor */
   .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
   .toolbar input[type=search] { flex:1 1 220px; }
@@ -304,6 +323,7 @@
       <a href="#/quiet" data-tab="quiet">Quiet</a>
       <a href="#/notifications" data-tab="notifications">Notifications</a>
       <a href="#/browse" data-tab="browse">Get packs</a>
+      <a href="#/health" data-tab="health">Health<span id="healthDot" class="nav-dot" hidden></span></a>
     </nav>
     <div class="global">
       <label class="switch-label" title="Mute or unmute every peon-ping sound">
@@ -1453,6 +1473,72 @@ function macBanner(title, subtitle, msg, icon) {
       el('div', { textContent: msg })));
 }
 
+/* ---------- health ---------- */
+const CHECK_ICON = { ok: '✓', warn: '!', error: '✕', info: 'i' };
+
+function setHealthDot(checks) {
+  const dot = $('#healthDot');
+  const worst = checks.some((c) => c.status === 'error') ? 'error' : checks.some((c) => c.status === 'warn') ? 'warn' : '';
+  dot.hidden = !worst;
+  dot.className = 'nav-dot ' + worst;
+  dot.title = worst ? 'Something needs attention' : '';
+}
+
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); } catch {
+    const ta = el('textarea', { value: text }); document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  btn.textContent = 'Copied';
+  setTimeout(() => (btn.textContent = 'Copy'), 1500);
+}
+
+async function viewHealth() {
+  setTab('health');
+  const checks = await getJson('/api/health');
+  setHealthDot(checks);
+  const problems = checks.filter((c) => c.status === 'error' || c.status === 'warn');
+  const summary = el('div', { className: 'card health-summary' },
+    el('span', { className: 'big', textContent: problems.length ? '🩺' : '✅' }),
+    el('div', {},
+      el('div', { style: 'font-weight:600', textContent: problems.length ? problems.length + (problems.length === 1 ? ' thing needs' : ' things need') + ' attention' : 'Everything looks good' }),
+      el('div', { className: 'small dim', textContent: problems.length ? 'Most have a fix button. Still silent after that? Play the test sound.' : 'If you still hear nothing, play the test sound to check your speakers.' })));
+
+  const groups = [];
+  for (const c of checks) {
+    let g = groups.find((x) => x.name === c.group);
+    if (!g) groups.push((g = { name: c.group, items: [] }));
+    g.items.push(c);
+  }
+  const rank = { error: 0, warn: 1, info: 2, ok: 3 };
+  const blocks = groups.map((g) => [
+    el('h2', { className: 'group-title', textContent: g.name }),
+    el('div', { className: 'card rows' }, g.items.sort((a, b) => rank[a.status] - rank[b.status]).map((c) => {
+      const txt = el('div', { className: 'txt' }, el('div', { className: 't', textContent: c.title }), c.detail ? el('div', { className: 'd', textContent: c.detail }) : null);
+      if (c.command) {
+        const copy = el('button', { className: 'btn sm', textContent: 'Copy' });
+        copy.onclick = () => copyText(c.command, copy);
+        txt.append(el('div', { className: 'cmd' }, el('code', { textContent: c.command }), copy));
+      }
+      return el('div', { className: 'check' },
+        el('span', { className: 'icon ' + c.status, textContent: CHECK_ICON[c.status] || '?' }),
+        txt,
+        c.fix ? el('button', { className: 'btn ' + (c.status === 'error' ? 'primary' : ''), textContent: c.fix.label, onclick: busyClick(async () => {
+          if (done(await post('/api/health/fix', { id: c.fix.id }), c.fix.label + ' — done')) { await refreshCore(); await route(); }
+        }) }) : null);
+    })),
+  ]);
+
+  return [
+    el('div', { className: 'page-head' },
+      el('div', {}, el('h1', { textContent: 'Health' }), el('p', { textContent: 'Everything peon-ping needs to make a sound, checked in one go.' })),
+      el('div', { className: 'actions' },
+        el('button', { className: 'btn', textContent: 'Play test sound', title: 'Plays a line from the default pack, even when muted', onclick: busyClick(async () => { done(await post('/api/health/test-sound', {}), 'Listen…'); }) }),
+        el('button', { className: 'btn', textContent: 'Check again', onclick: busyClick(() => route()) }))),
+    summary,
+    ...blocks.flat(),
+  ];
+}
+
 /* ---------- router ---------- */
 let routeSeq = 0;
 async function route() {
@@ -1468,6 +1554,7 @@ async function route() {
     if (hash.startsWith('#/pack/')) nodes = await viewPack(decodeURIComponent(hash.slice(7)));
     else if (hash.startsWith('#/tools')) nodes = await viewTools();
     else if (hash.startsWith('#/quiet')) nodes = await viewQuiet();
+    else if (hash.startsWith('#/health')) nodes = await viewHealth();
     else if (hash.startsWith('#/browse')) nodes = await viewBrowse();
     else if (hash.startsWith('#/notifications')) nodes = await viewNotifications();
     else nodes = viewPacks();
@@ -1497,6 +1584,7 @@ document.addEventListener('visibilitychange', syncStatus);
 window.addEventListener('focus', syncStatus);
 setInterval(syncStatus, 10000);
 
+getJson('/api/health?offline=1').then(setHealthDot).catch(() => {});
 refreshCore().then(route).catch((err) => $('#view').replaceChildren(el('div', { className: 'loading', textContent: err.message })));
 </script>
 </body>

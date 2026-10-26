@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { createPeon } = require('./peon');
+const { createHealth } = require('./health');
 
 const { version: VERSION } = require('../package.json');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -37,7 +38,7 @@ function readBody(req, max = MAX_BODY) {
   });
 }
 
-function createServer({ peon = createPeon() } = {}) {
+function createServer({ peon = createPeon(), health = createHealth(peon) } = {}) {
   const server = http.createServer(async (req, res) => {
     const port = server.address().port;
     // Only answer to our own address: a page on another domain that re-points its DNS at 127.0.0.1
@@ -59,6 +60,11 @@ function createServer({ peon = createPeon() } = {}) {
 
     if (req.method === 'GET' && url.pathname === '/api/packs') {
       sendJson(res, 200, peon.listPacks());
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/health') {
+      sendJson(res, 200, await health.run({ network: !url.searchParams.has('offline') }));
       return;
     }
 
@@ -148,6 +154,8 @@ function createServer({ peon = createPeon() } = {}) {
       '/api/sounds/remove': (p) => peon.removeSound(str(p.pack), str(p.category), str(p.file)),
       '/api/sounds/rename': (p) => peon.renameSound(str(p.pack), str(p.category), str(p.file), str(p.label)),
       '/api/settings/stop-sound': (p) => peon.setStopSoundOnClose(Boolean(p.on)),
+      '/api/health/fix': (p) => health.fix(str(p.id)),
+      '/api/health/test-sound': () => health.testSound(),
       '/api/install': (p) => peon.installPack(str(p.pack)),
       '/api/remove': (p) => peon.removePack(str(p.pack)),
     };
