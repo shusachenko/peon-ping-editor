@@ -720,6 +720,20 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     return { ok: true, message: from === to ? '' : `${fileName}: ${from} → ${to}` };
   }
 
+  // History is peon-ping's debug log; keeping it means `peon debug on` (pruned after debug_retention_days)
+  function historyState() {
+    const cfg = loadConfig();
+    return { enabled: Boolean(cfg.debug), retention_days: cfg.debug_retention_days || 7, events: require('./history').readHistory(path.join(paths.peonDir, 'logs')) };
+  }
+
+  function setHistory(on) {
+    if (peonBin) return runPeon(['debug', on ? 'on' : 'off']);
+    const cfg = loadConfig();
+    cfg.debug = Boolean(on);
+    writeJson(configPath, cfg);
+    return { ok: true, message: on ? 'History on' : 'History off' };
+  }
+
   // Our own key in peon-ping's config.json; PeonBar reads it (peon-ping ignores keys it does not know)
   function setStopSoundOnClose(on) {
     const cfg = loadConfig();
@@ -1150,6 +1164,8 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     createPack,
     setStopSoundOnClose,
     setSounds,
+    historyState,
+    setHistory,
     expireMute,
     addSoundFrom,
     uploadSound,

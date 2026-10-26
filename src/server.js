@@ -73,7 +73,7 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
       return;
     }
 
-    const reads = { '/api/quiet': () => peon.quiet(), '/api/folders': () => peon.folders(), '/api/mobile': () => peon.mobile() };
+    const reads = { '/api/history': () => peon.historyState(), '/api/quiet': () => peon.quiet(), '/api/folders': () => peon.folders(), '/api/mobile': () => peon.mobile() };
     if (req.method === 'GET' && reads[url.pathname]) {
       sendJson(res, 200, reads[url.pathname]());
       return;
@@ -156,6 +156,7 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
       '/api/settings/stop-sound': (p) => peon.setStopSoundOnClose(Boolean(p.on)),
       '/api/health/fix': (p) => health.fix(str(p.id)),
       '/api/health/test-sound': () => health.testSound(),
+      '/api/history': (p) => peon.setHistory(Boolean(p.on)),
       '/api/install': (p) => peon.installPack(str(p.pack)),
       '/api/remove': (p) => peon.removePack(str(p.pack)),
     };

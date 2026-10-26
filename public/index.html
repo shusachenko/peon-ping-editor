@@ -33,23 +33,23 @@
 
   /* top bar */
   header { position:sticky; top:0; z-index:5; background:var(--surface); border-bottom:1px solid var(--line); }
-  .bar { max-width:1040px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .bar { max-width:1120px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
   .brand { font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; }
   .brand img { border-radius:5px; }
   nav { display:flex; gap:4px; overflow-x:auto; }
   nav a { padding:6px 12px; border-radius:8px; color:var(--dim); text-decoration:none; white-space:nowrap; }
   nav a:hover { color:var(--text); background:var(--surface-2); }
   nav a.active { color:var(--text); background:var(--surface-2); font-weight:600; }
-  .global { margin-left:auto; display:flex; align-items:center; gap:14px; }
+  .global { margin-left:auto; display:flex; align-items:center; gap:12px; }
   .vol { display:flex; align-items:center; gap:8px; }
-  .vol input { width:120px; accent-color:var(--accent); }
+  .vol input { width:100px; accent-color:var(--accent); }
   .vol-icon { color:var(--dim); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; flex:none; }
   .vol output { width:38px; text-align:right; font-variant-numeric:tabular-nums; color:var(--dim); font-size:12px; }
   .muted .vol { opacity:.45; }
   .mute-for { width:34px; padding:4px; text-align:center; appearance:none; -webkit-appearance:none; cursor:pointer; color:var(--dim); }
   .muted .mute-for { display:none; }
 
-  main { max-width:1040px; margin:0 auto; padding:20px 16px 64px; }
+  main { max-width:1120px; margin:0 auto; padding:20px 16px 64px; }
   h1 { font-size:20px; margin:0; }
   .page-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
   .page-head p { margin:4px 0 0; color:var(--dim); }
@@ -146,7 +146,7 @@
   .meter span { display:block; height:100%; width:0; background:var(--accent); transition:width .08s; }
   .drop-zone { margin-top:10px; border:2px dashed var(--line); border-radius:10px; padding:18px; text-align:center; color:var(--dim); cursor:pointer; }
   .drop-zone.over { border-color:var(--accent); color:var(--text); }
-  footer { width:calc(100% - 32px); max-width:1008px; margin:0 auto; padding:16px 0 24px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
+  footer { width:calc(100% - 32px); max-width:1088px; margin:0 auto; padding:16px 0 24px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
   footer a { color:var(--dim); }
   footer a:hover { color:var(--text); }
 
@@ -167,6 +167,13 @@
   .check .cmd { display:flex; gap:8px; align-items:center; margin-top:8px; }
   .check .cmd code { flex:1; min-width:0; overflow-x:auto; white-space:nowrap; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:12px; }
   .check > .btn { flex:none; }
+  .hist { display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:4px 12px; padding:10px 14px; align-items:start; }
+  .hist .when { color:var(--dim); font-size:12px; font-variant-numeric:tabular-nums; padding-top:2px; }
+  .hist .what { min-width:0; }
+  .hist .what .d { color:var(--dim); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chip.played { background:var(--accent-soft); color:var(--accent); }
+  .chip.skipped { background:var(--warn-soft); color:var(--warn); }
+  .hist-bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 14px; }
   .group-title { margin:20px 0 6px; font-size:13px; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; }
 
   /* editor */
@@ -1745,6 +1752,7 @@ async function viewHealth() {
     })),
   ]);
 
+  const history = await historyCard();
   return [
     el('div', { className: 'page-head' },
       el('div', {}, el('h1', { textContent: 'Health' }), el('p', { textContent: 'Everything peon-ping needs to make a sound, checked in one go.' })),
@@ -1753,7 +1761,52 @@ async function viewHealth() {
         el('button', { className: 'btn', textContent: 'Check again', onclick: busyClick(() => route()) }))),
     summary,
     ...blocks.flat(),
+    el('h2', { className: 'group-title', textContent: 'Recent events' }),
+    history,
   ];
+}
+
+// Claude Code hook names, for events peon-ping skipped before picking a category
+const HOOK_TITLES = { SessionStart: 'Session start', SessionEnd: 'Session end', UserPromptSubmit: 'Prompt received', Stop: 'Task done', SubagentStop: 'Sub-agent done', SubagentStart: 'Sub-agent started', Notification: 'Waiting for you', PermissionRequest: 'Needs your input', PreToolUse: 'Tool call', PostToolUseFailure: 'Error', PreCompact: 'Compacting' };
+
+async function historyCard() {
+  const h = await getJson('/api/history');
+  const card = el('div', { className: 'card rows' });
+  let filter = 'all';
+  const toggle = switchEl(h.enabled, async (input) => {
+    input.disabled = true;
+    if (!done(await post('/api/history', { on: input.checked }), input.checked ? 'History on — new events show up here' : 'History off')) input.checked = !input.checked;
+    input.disabled = false;
+    h.enabled = input.checked;
+    draw();
+  }, 'Keep a history');
+  const draw = () => {
+    const bar = el('div', { className: 'hist-bar' },
+      el('label', { className: 'switch-label' }, toggle, 'Keep a history'),
+      el('span', { className: 'small dim', style: 'flex:1 1 240px', textContent: 'Uses peon-ping’s debug log, kept on this Mac for ' + h.retention_days + ' days. It includes folder names and pop-up text.' }),
+      h.events.length ? el('div', { className: 'seg' }, [['all', 'All'], ['skipped', 'Skipped only']].map(([v, t]) =>
+        el('button', { className: v === filter ? 'on' : '', textContent: t, onclick: () => { filter = v; draw(); } }))) : null);
+    const shown = h.events.filter((e) => filter === 'all' || e.status === 'skipped').slice(0, 100);
+    const rows = shown.map((e) => {
+      const d = new Date(e.time);
+      const when = d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+      const title = (e.category && e.category !== 'none' ? eventTitle(e.category) : HOOK_TITLES[e.event] || e.event) + (e.project ? ' · ' + e.project : '');
+      const detail = [e.file && (packTitle(e.pack) + ' — ' + e.file), e.message && '“' + e.message + '”', e.popup && 'pop-up shown'].filter(Boolean).join(' · ');
+      const chip = e.status === 'played' ? el('span', { className: 'chip played', textContent: 'Played' })
+        : e.status === 'pending' ? el('span', { className: 'chip', textContent: 'Just now' })
+        : e.status === 'none' ? el('span', { className: 'chip', textContent: 'No sound' })
+        : el('span', { className: 'chip skipped', textContent: 'Skipped', title: e.why });
+      return el('div', { className: 'hist' },
+        el('span', { className: 'when', textContent: when, title: d.toLocaleString() }),
+        el('div', { className: 'what' }, el('div', { textContent: title }), el('div', { className: 'd', textContent: e.status === 'skipped' ? e.why : detail, title: e.cwd })),
+        chip);
+    });
+    const empty = !h.enabled ? 'Turn on the history to see what peon-ping does with each event — and why something stayed silent.'
+      : !h.events.length ? 'Nothing yet. Work with your agent for a bit, then come back.' : !shown.length ? 'Nothing skipped recently.' : null;
+    card.replaceChildren(bar, ...(empty ? [el('div', { className: 'empty-row', textContent: empty })] : rows));
+  };
+  draw();
+  return card;
 }
 
 /* ---------- router ---------- */
