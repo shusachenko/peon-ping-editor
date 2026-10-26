@@ -732,7 +732,8 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     const cfg = loadConfig();
     const flags = cfg.categories || {};
     return {
-      sounds_on: !fs.existsSync(path.join(paths.peonDir, '.paused')),
+      sounds_on: (expireMute(), !fs.existsSync(path.join(paths.peonDir, '.paused'))),
+      mute_until: muteUntil(),
       volume: typeof cfg.volume === 'number' ? cfg.volume : 0.5,
       default_pack: cfg.default_pack || cfg.active_pack || 'peon',
       editor_version: require('../package.json').version,
@@ -741,12 +742,45 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     };
   }
 
-  function setSoundsOn(on) {
+  // A timed mute is peon-ping's normal pause plus this file holding when it ends (epoch seconds).
+  // PeonBar and the editor both turn sounds back on once it has passed; peon-ping's config is not touched.
+  const muteUntilFile = path.join(paths.peonDir, '.editor-mute-until');
+
+  function muteUntil() {
+    try {
+      const t = Number(fs.readFileSync(muteUntilFile, 'utf8').trim());
+      return Number.isFinite(t) && t > 0 ? t : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  // until: epoch seconds for a timed mute, or 0 for "until I turn it back on"
+  function setSoundsOn(on, until = 0) {
+    if (!on && until) {
+      const t = Math.floor(Number(until));
+      const now = Date.now() / 1000;
+      if (!(t > now && t < now + 7 * 86400)) return { ok: false, message: 'Pick a time within the next week' };
+      fs.writeFileSync(muteUntilFile, String(t));
+    } else {
+      fs.rmSync(muteUntilFile, { force: true });
+    }
     if (peonBin) return runPeon([on ? 'resume' : 'pause']);
     const file = path.join(paths.peonDir, '.paused');
     if (on) fs.rmSync(file, { force: true });
     else fs.writeFileSync(file, '');
     return { ok: true, message: on ? 'sounds on' : 'sounds muted' };
+  }
+
+  // Ends a timed mute whose time has come. Also forgets a stale end time if sounds were turned on elsewhere.
+  function expireMute(now = Date.now() / 1000) {
+    const until = muteUntil();
+    if (!until) return false;
+    const paused = fs.existsSync(path.join(paths.peonDir, '.paused'));
+    if (!paused) { fs.rmSync(muteUntilFile, { force: true }); return false; }
+    if (until > now) return false;
+    setSoundsOn(true);
+    return true;
   }
 
   function setVolume(volume) {
@@ -1116,6 +1150,7 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     createPack,
     setStopSoundOnClose,
     setSounds,
+    expireMute,
     addSoundFrom,
     uploadSound,
     removeSound,

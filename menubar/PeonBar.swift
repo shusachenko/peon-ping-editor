@@ -11,6 +11,14 @@ let peonDir = UserDefaults.standard.string(forKey: "peonDir")
 let peonScript = "\(peonDir)/peon.sh"
 let configPath = "\(peonDir)/config.json"
 let pausedPath = "\(peonDir)/.paused"
+// Shared with the editor: when a timed mute ends (epoch seconds). peon-ping itself does not know about it.
+let muteUntilPath = "\(peonDir)/.editor-mute-until"
+
+func muteUntil() -> Date? {
+    guard let text = try? String(contentsOfFile: muteUntilPath, encoding: .utf8),
+          let t = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)), t > 0 else { return nil }
+    return Date(timeIntervalSince1970: t)
+}
 let editorURL = URL(string: "http://127.0.0.1:8787/")!
 
 // Written by install.sh; used to check for and install updates
@@ -146,7 +154,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         slider.action = #selector(volumeChanged(_:))
         slider.isContinuous = true
         refreshIcon()
-        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refreshIcon() }
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.expireTimedMute()
+            self?.refreshIcon()
+        }
         announceFinishedUpdate()
         listenForBannerClose()
         // Look for a new version shortly after login, then every few hours (at most once a day)
@@ -189,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         image?.accessibilityDescription = paused ? "peon-ping muted" : "peon-ping on"
         item.button?.image = image
-        item.button?.toolTip = paused ? "peon-ping: muted" : "peon-ping: sounds on"
+        item.button?.toolTip = paused ? (muteUntil().map { "peon-ping: muted until \(Self.untilText($0))" } ?? "peon-ping: muted") : "peon-ping: sounds on"
     }
 
     // Rebuilt every time the menu opens, so it always shows the current config
@@ -209,6 +220,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggle.target = self
         toggle.state = paused ? .off : .on
         menu.addItem(toggle)
+
+        if paused, let until = muteUntil() {
+            let note = NSMenuItem(title: "Muted until \(Self.untilText(until))", action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            menu.addItem(note)
+        } else if !paused {
+            let muteFor = NSMenuItem(title: "Mute for", action: nil, keyEquivalent: "")
+            let sub = NSMenu()
+            for (title, seconds) in [("30 minutes", 1800), ("1 hour", 3600), ("2 hours", 7200), ("Until tomorrow morning", -1)] {
+                let entry = NSMenuItem(title: title, action: #selector(muteFor(_:)), keyEquivalent: "")
+                entry.target = self
+                entry.tag = seconds
+                sub.addItem(entry)
+            }
+            muteFor.submenu = sub
+            menu.addItem(muteFor)
+        }
 
         let volume = (cfg["volume"] as? Double) ?? 0.5
         slider.doubleValue = volume * 100
@@ -300,7 +328,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func toggleSounds() {
+        // Any manual change ends a timed mute
+        try? FileManager.default.removeItem(atPath: muteUntilPath)
         runInBackground([paused ? "resume" : "pause"]) { [weak self] in self?.refreshIcon() }
+    }
+
+    @objc func muteFor(_ sender: NSMenuItem) {
+        var end = Date().addingTimeInterval(TimeInterval(sender.tag))
+        if sender.tag < 0 {
+            // 9:00 tomorrow
+            let cal = Calendar.current
+            let tomorrow = cal.date(byAdding: .day, value: 1, to: Date())!
+            end = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
+        }
+        try? String(Int(end.timeIntervalSince1970)).write(toFile: muteUntilPath, atomically: true, encoding: .utf8)
+        runInBackground(["pause"]) { [weak self] in self?.refreshIcon() }
+    }
+
+    func expireTimedMute() {
+        guard let until = muteUntil() else { return }
+        if !paused {
+            // Sounds came back some other way (editor, `peon resume`): forget the end time
+            try? FileManager.default.removeItem(atPath: muteUntilPath)
+        } else if until <= Date() {
+            try? FileManager.default.removeItem(atPath: muteUntilPath)
+            runInBackground(["resume"]) { [weak self] in self?.refreshIcon() }
+        }
+    }
+
+    static func untilText(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
+        let time = f.string(from: date)
+        if Calendar.current.isDateInToday(date) { return time }
+        if Calendar.current.isDateInTomorrow(date) { return "tomorrow \(time)" }
+        f.dateFormat = "EEE"
+        return "\(f.string(from: date)) \(time)"
     }
 
     var pendingVolume: DispatchWorkItem?

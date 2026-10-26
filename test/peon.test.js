@@ -375,3 +375,27 @@ test('session-start kinds recorded by peon-ping are not listed as tools', () => 
   assert.ok(!ids.includes('startup') && !ids.includes('fork'));
   assert.ok(peon.toolBindings().tools.find((t) => t.id === 'cursor').seen);
 });
+
+test('timed mute: ends on time, and forgets itself when sounds come back another way', () => {
+  const { peon } = setup();
+  const now = Date.now() / 1000;
+  assert.equal(peon.setSoundsOn(false, now - 10).ok, false); // in the past
+  assert.equal(peon.setSoundsOn(false, now + 30 * 86400).ok, false); // too far
+  assert.equal(peon.setSoundsOn(false, now + 3600).ok, true);
+  assert.equal(peon.status().sounds_on, false);
+  assert.ok(peon.status().mute_until > now);
+  assert.equal(peon.expireMute(now + 1800), false); // not yet
+  assert.equal(peon.expireMute(now + 3601), true);
+  assert.equal(peon.status().sounds_on, true);
+  assert.equal(peon.status().mute_until, 0);
+
+  peon.setSoundsOn(false, now + 3600);
+  fs.rmSync(path.join(peon.paths.peonDir, '.paused')); // e.g. `peon resume` in a terminal
+  assert.equal(peon.expireMute(now + 10), false);
+  assert.equal(peon.status().mute_until, 0);
+
+  peon.setSoundsOn(false, now + 3600);
+  peon.setSoundsOn(false); // plain mute replaces the timed one
+  assert.equal(peon.status().mute_until, 0);
+  assert.equal(peon.status().sounds_on, false);
+});

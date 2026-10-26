@@ -137,7 +137,7 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
       '/api/move': (p) => peon.moveSound(str(p.pack), str(p.file), str(p.from), str(p.to), str(p.before)),
       '/api/tools': (p) => peon.bindTool(str(p.tool), str(p.pack)),
       '/api/default': (p) => peon.setDefaultPack(str(p.pack)),
-      '/api/sounds': (p) => peon.setSoundsOn(Boolean(p.on)),
+      '/api/sounds': (p) => peon.setSoundsOn(Boolean(p.on), Number(p.until) || 0),
       '/api/volume': (p) => peon.setVolume(p.volume),
       '/api/event': (p) => peon.setEvent(str(p.category), Boolean(p.enabled)),
       '/api/notifications': (p) => peon.setNotifications(p),
@@ -200,6 +200,10 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
 
     res.writeHead(404).end();
   });
+  // A timed mute ends on time while the editor runs, even with no page open (PeonBar does the same)
+  const timer = setInterval(() => { try { peon.expireMute(); } catch { /* keep serving */ } }, 30000);
+  timer.unref();
+  server.on('close', () => clearInterval(timer));
   return server;
 }
 

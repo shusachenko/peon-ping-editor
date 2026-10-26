@@ -46,6 +46,8 @@
   .vol-icon { color:var(--dim); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; flex:none; }
   .vol output { width:38px; text-align:right; font-variant-numeric:tabular-nums; color:var(--dim); font-size:12px; }
   .muted .vol { opacity:.45; }
+  .mute-for { width:34px; padding:4px; text-align:center; appearance:none; -webkit-appearance:none; cursor:pointer; color:var(--dim); }
+  .muted .mute-for { display:none; }
 
   main { max-width:1040px; margin:0 auto; padding:20px 16px 64px; }
   h1 { font-size:20px; margin:0; }
@@ -330,6 +332,13 @@
         <span class="switch"><input type="checkbox" id="soundsOn" autocomplete="off"><span></span></span>
         <span id="soundsText">Sounds on</span>
       </label>
+      <select id="muteFor" class="mute-for" aria-label="Mute for a while" title="Mute for a while">
+        <option value="">⏱</option>
+        <option value="1800">Mute for 30 min</option>
+        <option value="3600">Mute for 1 hour</option>
+        <option value="7200">Mute for 2 hours</option>
+        <option value="tomorrow">Mute until tomorrow</option>
+      </select>
       <div class="vol" title="Volume">
         <svg id="volIcon" class="vol-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
         <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volume" autocomplete="off">
@@ -474,18 +483,48 @@ function renderGlobal() {
   const s = store.status;
   $('#ver').textContent = s.editor_version ? 'v' + s.editor_version : '';
   $('#soundsOn').checked = s.sounds_on;
-  $('#soundsText').textContent = s.sounds_on ? 'Sounds on' : 'Muted';
+  $('#soundsText').textContent = s.sounds_on ? 'Sounds on' : s.mute_until ? 'Muted until ' + formatUntil(s.mute_until) : 'Muted';
   document.body.classList.toggle('muted', !s.sounds_on);
   $('#volume').value = Math.round(s.volume * 100);
   $('#volumeOut').textContent = Math.round(s.volume * 100) + '%';
   drawVolumeIcon(s.sounds_on ? s.volume : 0);
 }
+// "15:30", or "tomorrow 09:00" when it ends on another day
+function formatUntil(epoch) {
+  const d = new Date(epoch * 1000);
+  const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? hm : (d.getDate() === new Date(Date.now() + 86400000).getDate() ? 'tomorrow ' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + hm;
+}
+
+// "Until tomorrow" means 9:00 the next morning
+function muteEnd(choice) {
+  if (choice === 'tomorrow') {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return Math.floor(d.getTime() / 1000);
+  }
+  return Math.floor(Date.now() / 1000) + Number(choice);
+}
+
+$('#muteFor').onchange = async (e) => {
+  const choice = e.target.value;
+  e.target.value = '';
+  if (!choice) return;
+  const until = muteEnd(choice);
+  if (done(await post('/api/sounds', { on: false, until }), 'Muted until ' + formatUntil(until))) {
+    store.status.sounds_on = false;
+    store.status.mute_until = until;
+  }
+  renderGlobal();
+};
+
 $('#soundsOn').onchange = async (e) => {
   const on = e.target.checked;
   e.target.disabled = true;
   const ok = done(await post('/api/sounds', { on }), on ? 'Sounds on' : 'Muted');
   e.target.disabled = false;
-  if (ok) store.status.sounds_on = on;
+  if (ok) { store.status.sounds_on = on; store.status.mute_until = 0; }
   renderGlobal();
 };
 $('#volume').oninput = (e) => { $('#volumeOut').textContent = e.target.value + '%'; drawVolumeIcon(store.status.sounds_on ? e.target.value / 100 : 0); };
@@ -1575,7 +1614,7 @@ async function syncStatus() {
   if (document.hidden || !store.status || document.activeElement === $('#volume')) return;
   try {
     const s = await getJson('/api/status');
-    if (s.sounds_on !== store.status.sounds_on || s.volume !== store.status.volume) { store.status = s; renderGlobal(); }
+    if (s.sounds_on !== store.status.sounds_on || s.volume !== store.status.volume || s.mute_until !== store.status.mute_until) { store.status = s; renderGlobal(); }
   } catch {
     // editor stopped; the next action will say so
   }
