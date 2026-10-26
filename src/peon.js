@@ -820,6 +820,13 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     return { ok: true, name, message: `Imported ${title} (${count} sound${count === 1 ? '' : 's'})` };
   }
 
+  function setOnboarded() {
+    const cfg = loadConfig();
+    cfg.x_editor_onboarded = true;
+    writeJson(configPath, cfg);
+    return { ok: true, message: '' };
+  }
+
   // Our own key in peon-ping's config.json; PeonBar reads it (peon-ping ignores keys it does not know)
   function setStopSoundOnClose(on) {
     const cfg = loadConfig();
@@ -838,6 +845,8 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
       default_pack: cfg.default_pack || cfg.active_pack || 'peon',
       editor_version: require('../package.json').version,
       stop_sound_on_close: cfg.x_editor_stop_sound_on_close !== false,
+      // Show the setup guide on its own only to people who have not set anything up yet
+      onboarded: Boolean(cfg.x_editor_onboarded) || Boolean((cfg.ide_rules || []).length || (cfg.path_rules || []).length) || installedPacks().some(isCustom),
       events: Object.keys(CATEGORY_HINTS).map((name) => ({ name, hint: CATEGORY_HINTS[name], enabled: flags[name] !== false })),
     };
   }
@@ -1250,6 +1259,7 @@ function createPeon(paths = resolvePaths(), { fetchRegistry = defaultFetchRegist
     createPack,
     setStopSoundOnClose,
     setSounds,
+    setOnboarded,
     exportPack,
     importPack,
     historyState,

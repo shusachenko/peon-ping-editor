@@ -150,6 +150,22 @@
   footer a { color:var(--dim); }
   footer a:hover { color:var(--text); }
 
+  /* setup guide */
+  .wizard { max-width:760px; margin:0 auto; }
+  .wizard .steps { display:flex; gap:6px; margin:6px 0 18px; }
+  .wizard .steps span { flex:1; height:4px; border-radius:2px; background:var(--line); }
+  .wizard .steps span.on { background:var(--accent); }
+  .wizard .body { padding:18px; }
+  .wizard h2 { margin:0 0 4px; font-size:18px; }
+  .wizard .lead { margin:0 0 14px; color:var(--dim); }
+  .wizard .nav-row { display:flex; gap:8px; align-items:center; margin-top:16px; }
+  .wizard .nav-row .skip { margin-right:auto; }
+  .pick-pack { display:flex; gap:12px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:10px; cursor:pointer; }
+  .pick-pack + .pick-pack { margin-top:8px; }
+  .pick-pack.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .pick-pack .info { flex:1; min-width:0; }
+  .pick-pack input { accent-color:var(--accent); }
+
   /* health */
   .nav-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:6px; vertical-align:2px; background:var(--warn); }
   .nav-dot.error { background:var(--danger); }
@@ -366,6 +382,7 @@
   <a href="https://github.com/shusachenko/peon-ping-editor/issues" target="_blank" rel="noopener">Report a problem ↗</a>
   <a href="https://github.com/PeonPing/peon-ping" target="_blank" rel="noopener">peon-ping ↗</a>
   <a href="https://openpeon.com/packs" target="_blank" rel="noopener">Sound packs ↗</a>
+  <a href="#/welcome">Setup guide</a>
 </footer>
 <div id="toast" role="status"></div>
 
@@ -1718,6 +1735,77 @@ function macBanner(title, subtitle, msg, icon) {
       el('div', { textContent: msg })));
 }
 
+/* ---------- setup guide ---------- */
+const wizard = { step: 0 };
+
+async function viewWelcome() {
+  setTab('');
+  const STEPS = 4;
+  const step = Math.min(wizard.step, STEPS - 1);
+  const go = (n) => { wizard.step = n; route(); };
+  const finish = async () => { await post('/api/onboarded', {}); store.status.onboarded = true; wizard.step = 0; location.hash = '#/packs'; };
+  let body;
+
+  if (step === 0) {
+    const def = store.status.default_pack;
+    const list = el('div');
+    for (const p of store.packs) {
+      const radio = el('input', { type: 'radio', name: 'defpack', checked: p.name === def });
+      const row = el('label', { className: 'pick-pack' + (p.name === def ? ' on' : '') },
+        radio, Object.assign(playBtn(() => sampleOf(p.name), 'Play a sample'), { disabled: !p.sound_count }),
+        el('div', { className: 'info' }, el('div', { style: 'font-weight:600', textContent: p.display_name }), el('div', { className: 'small dim', textContent: p.sound_count + ' sounds' })));
+      radio.onchange = async () => {
+        if (done(await post('/api/default', { pack: p.name }), p.display_name + ' is your default')) {
+          store.status.default_pack = p.name;
+          list.querySelectorAll('.pick-pack').forEach((x) => x.classList.toggle('on', x === row));
+        }
+      };
+      list.append(row);
+    }
+    body = [el('h2', { textContent: 'Pick a voice' }), el('p', { className: 'lead', textContent: 'This pack plays whenever an agent starts, finishes or needs you. Press ▶ to listen.' }), list,
+      el('p', { className: 'small dim', style: 'margin-top:12px' }, 'Want something else? ', el('a', { href: '#/browse', style: 'color:var(--accent)', textContent: 'Browse 370+ packs' }), ' — come back with “Setup guide” at the bottom.')];
+  } else if (step === 1) {
+    const t = store.tools;
+    const shown = t.tools.filter((x) => x.seen || ['claude', 'copilot', 'cursor', 'codex'].includes(x.id));
+    const rows = shown.map((tool) => {
+      const sel = el('select', {}, el('option', { value: '', textContent: 'Same as default — ' + packTitle(t.default_pack) }), store.packs.map((p) => el('option', { value: p.name, textContent: p.display_name })));
+      sel.value = store.packs.some((p) => p.name === tool.pack) ? tool.pack : '';
+      sel.onchange = async () => { if (done(await post('/api/tools', { tool: tool.id, pack: sel.value }), tool.name + ' → ' + (sel.value ? packTitle(sel.value) : 'default'))) store.tools = await getJson('/api/tools'); };
+      return el('div', { className: 'tool' }, el('div', { className: 'who' }, el('div', { className: 't' }, tool.name, tool.seen ? el('span', { className: 'seen', title: 'peon-ping has heard from this tool' }) : null)), sel);
+    });
+    body = [el('h2', { textContent: 'A different voice per tool?' }), el('p', { className: 'lead', textContent: 'Handy when Claude Code, Copilot and Cursor run side by side: you hear which one is done. Leave them on “same as default” if you like.' }), el('div', { className: 'card rows' }, rows)];
+  } else if (step === 2) {
+    const q = await getJson('/api/quiet');
+    const row = (key, title, desc) => el('div', { className: 'q-row' },
+      switchEl(q[key], async (input) => { input.disabled = true; if (!done(await post('/api/quiet', { [key]: input.checked }))) input.checked = !input.checked; input.disabled = false; }, title),
+      el('div', { className: 'txt' }, el('div', { className: 't', textContent: title }), el('div', { className: 'd', textContent: desc })));
+    body = [el('h2', { textContent: 'When should it stay quiet?' }), el('p', { className: 'lead', textContent: 'You can change these any time under Quiet.' }),
+      el('div', { className: 'card rows' },
+        row('meeting_detect', 'During calls', 'Silent while Zoom, Meet, Teams or Slack is using the microphone.'),
+        row('headphones_only', 'Only with headphones', 'Nothing from the laptop speakers — good for open offices.'),
+        row('suppress_sound_when_tab_focused', 'Not when I’m watching', 'Skip the sound when the agent’s tab is already in front of you.')),
+      el('p', { className: 'small dim', style: 'margin-top:12px', textContent: 'Need silence right now? Use ⏱ at the top or PeonBar → Mute for…, or press ⌃⌥⌘M anywhere (macOS).' })];
+  } else {
+    const checks = await getJson('/api/health?offline=1');
+    setHealthDot(checks);
+    const problems = checks.filter((c) => c.status === 'error' || c.status === 'warn');
+    body = [el('h2', { textContent: problems.length ? 'Almost there' : 'All set' }),
+      el('p', { className: 'lead', textContent: problems.length ? problems.length + (problems.length === 1 ? ' thing needs' : ' things need') + ' a look — Health has a fix button for most.' : 'peon-ping is wired up. Play the test sound to check your speakers.' }),
+      el('div', { className: 'nav-row', style: 'margin-top:0' },
+        el('button', { className: 'btn', textContent: 'Play test sound', onclick: busyClick(async () => { done(await post('/api/health/test-sound', {}), 'Listen…'); }) }),
+        problems.length ? el('a', { className: 'btn', href: '#/health', textContent: 'Open Health', style: 'text-decoration:none' }) : null)];
+  }
+
+  const nav = el('div', { className: 'nav-row' },
+    el('button', { className: 'btn ghost skip', textContent: step === STEPS - 1 ? '' : 'Skip setup', onclick: finish, hidden: step === STEPS - 1 }),
+    step > 0 ? el('button', { className: 'btn', textContent: 'Back', onclick: () => go(step - 1) }) : null,
+    step < STEPS - 1 ? el('button', { className: 'btn primary', textContent: 'Next', onclick: () => go(step + 1) }) : el('button', { className: 'btn primary', textContent: 'Finish', onclick: finish }));
+  return [el('div', { className: 'wizard' },
+    el('div', { className: 'page-head' }, el('div', {}, el('h1', { textContent: 'Welcome to peon-ping editor' }), el('p', { textContent: 'Step ' + (step + 1) + ' of ' + STEPS }))),
+    el('div', { className: 'steps' }, Array.from({ length: STEPS }, (_, i) => el('span', { className: i <= step ? 'on' : '' }))),
+    el('div', { className: 'card body' }, ...body, nav))];
+}
+
 /* ---------- health ---------- */
 const CHECK_ICON = { ok: '✓', warn: '!', error: '✕', info: 'i' };
 
@@ -1846,6 +1934,7 @@ async function route() {
     else if (hash.startsWith('#/tools')) nodes = await viewTools();
     else if (hash.startsWith('#/quiet')) nodes = await viewQuiet();
     else if (hash.startsWith('#/health')) nodes = await viewHealth();
+    else if (hash.startsWith('#/welcome')) nodes = await viewWelcome();
     else if (hash.startsWith('#/browse')) nodes = await viewBrowse();
     else if (hash.startsWith('#/notifications')) nodes = await viewNotifications();
     else nodes = viewPacks();
@@ -1876,7 +1965,7 @@ window.addEventListener('focus', syncStatus);
 setInterval(syncStatus, 10000);
 
 getJson('/api/health?offline=1').then(setHealthDot).catch(() => {});
-refreshCore().then(route).catch((err) => $('#view').replaceChildren(el('div', { className: 'loading', textContent: err.message })));
+refreshCore().then(() => { if (!store.status.onboarded && !location.hash) location.hash = '#/welcome'; return route(); }).catch((err) => $('#view').replaceChildren(el('div', { className: 'loading', textContent: err.message })));
 </script>
 </body>
 </html>

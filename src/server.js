@@ -169,6 +169,7 @@ function createServer({ peon = createPeon(), health = createHealth(peon) } = {})
       '/api/health/fix': (p) => health.fix(str(p.id)),
       '/api/health/test-sound': () => health.testSound(),
       '/api/history': (p) => peon.setHistory(Boolean(p.on)),
+      '/api/onboarded': () => peon.setOnboarded(),
       '/api/install': (p) => peon.installPack(str(p.pack)),
       '/api/remove': (p) => peon.removePack(str(p.pack)),
     };

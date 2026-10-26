@@ -436,3 +436,16 @@ test('export a pack to one file and import it back as your own', () => {
   assert.equal(peon.importPack(Buffer.from('not a zip at all')).ok, false);
   assert.ok(!fs.existsSync(path.join(peon.paths.packsDir, '..', 'evil.wav')));
 });
+
+test('setup guide shows only for a fresh setup, and not again once done', () => {
+  const { peon, config } = setup();
+  const cfg = config();
+  delete cfg.ide_rules;
+  fs.writeFileSync(peon.paths.configPath, JSON.stringify(cfg));
+  assert.equal(peon.status().onboarded, false);
+  peon.setOnboarded();
+  assert.equal(peon.status().onboarded, true);
+  // someone who already bound tools is not sent to the guide
+  const { peon: p2 } = setup();
+  assert.equal(p2.status().onboarded, true);
+});
