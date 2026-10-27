@@ -37,7 +37,7 @@
   .brand { font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; }
   .brand img { border-radius:5px; }
   nav { display:flex; gap:4px; overflow-x:auto; }
-  nav a { padding:6px 12px; border-radius:8px; color:var(--dim); text-decoration:none; white-space:nowrap; }
+  nav a { padding:6px 12px; border-radius:8px; color:var(--dim); text-decoration:none; }
   nav a:hover { color:var(--text); background:var(--surface-2); }
   nav a.active { color:var(--text); background:var(--surface-2); font-weight:600; }
   .global { margin-left:auto; display:flex; align-items:center; gap:12px; }
@@ -46,7 +46,7 @@
   .vol-icon { color:var(--dim); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; flex:none; }
   .vol output { width:38px; text-align:right; font-variant-numeric:tabular-nums; color:var(--dim); font-size:12px; }
   .muted .vol { opacity:.45; }
-  .mute-for { width:34px; padding:4px; text-align:center; appearance:none; -webkit-appearance:none; cursor:pointer; color:var(--dim); }
+  .mute-for { width:34px; padding:4px; background-image:none; text-align:center; appearance:none; -webkit-appearance:none; cursor:pointer; color:var(--dim); }
   .muted .mute-for { display:none; }
 
   main { max-width:1120px; margin:0 auto; padding:20px 16px 64px; }
@@ -56,7 +56,8 @@
   .page-head .actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
 
   .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); }
-  .btn { border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:6px 12px; }
+  /* inline-flex keeps a spinner and its label on one line, centred; links styled as buttons get the button colours */
+  .btn { border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:6px 12px; display:inline-flex; align-items:center; justify-content:center; gap:6px; color:var(--text); text-decoration:none; }
   .btn:hover:not(:disabled) { background:var(--surface-2); }
   .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-text); font-weight:600; }
   .btn.primary:hover:not(:disabled) { filter:brightness(1.05); background:var(--accent); }
@@ -68,10 +69,16 @@
   .chip.accent { background:var(--accent-soft); color:var(--accent); font-weight:600; }
   .chips { display:flex; gap:6px; flex-wrap:wrap; }
   select, input[type=search], input[type=text], input[type=password] { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 10px; min-width:0; }
+  /* Own chevron: the native one sits too close to the edge and differs per browser */
+  select { appearance:none; -webkit-appearance:none; padding-right:30px; cursor:pointer;
+           background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238d94a2' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+           background-repeat:no-repeat; background-position:right 11px center; }
 
   .play { width:32px; height:32px; flex:none; border-radius:50%; border:1px solid var(--line); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; font-size:11px; padding:0; }
   .play:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
-  .play.playing { background:var(--accent); border-color:var(--accent); color:var(--accent-text); }
+  /* Hover must not paint the ■ green on the green fill */
+  .play.playing, .play.playing:hover:not(:disabled) { background:var(--accent); border-color:var(--accent); color:var(--accent-text); }
+  .play.playing:hover:not(:disabled) { filter:brightness(1.08); }
 
   .switch { position:relative; display:inline-block; width:36px; height:20px; flex:none; }
   .switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
@@ -217,7 +224,7 @@
   .sound .file { font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sound .moved { background:var(--moved); color:var(--moved-text); }
   .sound .missing { background:var(--warn-soft); color:var(--warn); }
-  .sound select.move { width:34px; padding:4px; color:var(--dim); flex:none; appearance:none; -webkit-appearance:none; text-align:center; background:var(--surface); cursor:pointer; }
+  .sound select.move { width:34px; padding:4px; background-image:none; color:var(--dim); flex:none; appearance:none; -webkit-appearance:none; text-align:center; background:var(--surface); cursor:pointer; }
   .grip { color:var(--dim); opacity:.5; user-select:none; flex:none; }
   /* Dragging needs a mouse; on touch screens the ⇄ menu moves sounds */
   @media (hover:none) { .grip { display:none; } .sound[draggable=true] { cursor:default; } }
@@ -235,7 +242,7 @@
   .entry .meta { font-size:12px; color:var(--dim); margin-top:4px; }
   .entry .act { flex:none; display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:104px; }
   .more { padding:12px 14px; text-align:center; }
-  .spinner { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+  .spinner { display:inline-block; flex:none; width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
 
@@ -839,7 +846,7 @@ function viewPacks() {
         el('div', {}, el('div', { className: 'name', textContent: p.display_name }), el('div', { className: 'small dim', textContent: t('{name} · {n} sounds', { name: p.name, n: p.sound_count }) }))),
       chips.length ? el('div', { className: 'chips' }, chips) : el('div', { className: 'small dim', textContent: 'Not used by any tool' }),
       el('div', { className: 'bottom' },
-        el('a', { className: 'btn sm primary', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds', style: 'text-decoration:none' }),
+        el('a', { className: 'btn sm primary', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds' }),
         p.name !== def ? el('button', { className: 'btn sm', textContent: 'Make default', onclick: busyClick(() => makeDefault(p.name)) }) : null,
         p.name !== def ? Object.assign(el('button', { className: 'icon-btn', title: 'Remove ' + p.display_name, onclick: removeClick(p.name, p.display_name) }), { innerHTML: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>' }) : null));
   });
@@ -1062,7 +1069,7 @@ async function viewPack(name) {
     el('div', { className: 'page-head' },
       el('div', {}, el('h1', { textContent: p.display_name }), el('p', {}, el('span', { className: 'mono', textContent: p.name }), chips.length ? ' · ' : '', ...chips.flatMap((c) => [c, ' ']))),
       el('div', { className: 'actions' },
-        el('a', { className: 'btn', href: '/api/export?pack=' + encodeURIComponent(name), download: name + '.peonpack.zip', textContent: 'Export', title: 'Save this pack as one file to share', style: 'text-decoration:none' }),
+        el('a', { className: 'btn', href: '/api/export?pack=' + encodeURIComponent(name), download: name + '.peonpack.zip', textContent: 'Export', title: 'Save this pack as one file to share' }),
         p.custom ? null : el('button', { className: 'btn', textContent: 'Make it your own', title: 'Copy this pack so you can add, upload, rename and delete sounds', onclick: busyClick(() => createPack({ name: uniqueSlug(name + '-mine'), display_name: p.display_name + ' (mine)', from: name })) }),
         isDefault ? null : el('button', { className: 'btn', textContent: 'Make default', onclick: busyClick(() => makeDefault(name)) }))),
     el('div', { className: 'toolbar' }, search, onlyOn, el('span', { className: 'small dim', textContent: 'Tip: drag sounds to reorder them or move them to another event; ⇄ moves without dragging' })),
@@ -1547,7 +1554,7 @@ function renderEntry(p) {
   if (browse.busy.has(p.name)) {
     act.append(el('button', { className: 'btn', disabled: true }, el('span', { className: 'spinner' }), ' Installing'));
   } else if (p.installed) {
-    act.append(el('a', { className: 'btn sm', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds', style: 'text-align:center;text-decoration:none' }));
+    act.append(el('a', { className: 'btn sm', href: '#/pack/' + encodeURIComponent(p.name), textContent: 'Edit sounds' }));
     if (!p.is_default) act.append(el('button', { className: 'btn sm ghost danger', textContent: 'Remove', onclick: removeClick(p.name, p.display_name) }));
   } else {
     act.append(el('button', { className: 'btn primary', textContent: 'Install', onclick: () => install(p) }));
@@ -2040,7 +2047,7 @@ async function viewWelcome() {
       el('p', { className: 'lead', textContent: problems.length ? t(problems.length === 1 ? '{n} thing needs a look — Health has a fix button for most.' : '{n} things need a look — Health has a fix button for most.', { n: problems.length }) : 'peon-ping is wired up. Play the test sound to check your speakers.' }),
       el('div', { className: 'nav-row', style: 'margin-top:0' },
         el('button', { className: 'btn', textContent: 'Play test sound', onclick: busyClick(async () => { done(await post('/api/health/test-sound', {}), 'Listen…'); }) }),
-        problems.length ? el('a', { className: 'btn', href: '#/health', textContent: 'Open Health', style: 'text-decoration:none' }) : null)];
+        problems.length ? el('a', { className: 'btn', href: '#/health', textContent: 'Open Health' }) : null)];
   }
 
   const nav = el('div', { className: 'nav-row' },
