@@ -282,16 +282,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         editor.target = self
         menu.addItem(editor)
 
-        // Shown on the top level only while there is something to say
+        let update: NSMenuItem
         if updating {
-            let update = NSMenuItem(title: "Updating…", action: nil, keyEquivalent: "")
+            update = NSMenuItem(title: "Updating…", action: nil, keyEquivalent: "")
             update.isEnabled = false
-            menu.addItem(update)
         } else if let latest = availableVersion {
-            let update = NSMenuItem(title: "Update to \(latest)…", action: #selector(checkForUpdates), keyEquivalent: "")
-            update.target = self
-            menu.addItem(update)
+            update = NSMenuItem(title: "Update to \(latest)…", action: #selector(checkForUpdates), keyEquivalent: "")
+        } else {
+            update = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         }
+        update.target = self
+        menu.addItem(update)
 
         // Things you set once live in a submenu, so the menu stays short
         let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
@@ -320,9 +321,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsMenu.addItem(login)
 
         settingsMenu.addItem(.separator())
-        let check = NSMenuItem(title: "Check for Updates…", action: updating ? nil : #selector(checkForUpdates), keyEquivalent: "")
-        check.target = self
-        settingsMenu.addItem(check)
         let version = NSMenuItem(title: "peon-ping editor \(installedVersion())", action: nil, keyEquivalent: "")
         version.isEnabled = false
         settingsMenu.addItem(version)
@@ -335,8 +333,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // Two toggle buttons: Mute (sounds off, banners stay) and Off (both off). Clicking the lit one turns everything back on.
+    // Custom rows line up with the text of ordinary menu items and stretch to the menu's width
+    static let rowInset: CGFloat = 16
+    static let rowWidth: CGFloat = 260
+
+    func rowItem(height: CGFloat, _ views: [(NSView, CGFloat, CGFloat)]) -> NSMenuItem {
+        let row = NSView(frame: NSRect(x: 0, y: 0, width: Self.rowWidth, height: height))
+        row.autoresizingMask = [.width]
+        for (view, y, h) in views {
+            // Text fields draw their text 2pt in from the frame
+            let nudge: CGFloat = view is NSTextField ? 2 : 0
+            view.frame = NSRect(x: Self.rowInset - nudge, y: y, width: Self.rowWidth - 2 * Self.rowInset + 2 * nudge, height: h)
+            view.autoresizingMask = [.width]
+            row.addSubview(view)
+        }
+        let entry = NSMenuItem()
+        entry.view = row
+        return entry
+    }
+
     func modeItem(_ mode: Mode) -> NSMenuItem {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 50))
         let buttons = NSSegmentedControl(labels: ["Mute", "Off"], trackingMode: .selectAny, target: self, action: #selector(modeClicked(_:)))
         buttons.setImage(NSImage(systemSymbolName: "speaker.slash.fill", accessibilityDescription: nil), forSegment: 0)
         buttons.setImage(NSImage(systemSymbolName: "bell.slash.fill", accessibilityDescription: nil), forSegment: 1)
@@ -345,16 +361,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buttons.setSelected(mode == .mute, forSegment: 0)
         buttons.setSelected(mode == .off, forSegment: 1)
         buttons.segmentDistribution = .fillEqually
-        buttons.frame = NSRect(x: 18, y: 20, width: 204, height: 24)
         let note = NSTextField(labelWithString: [Mode.on: "Sounds and banners on", .mute: "Sounds muted, banners still show", .off: "No sounds or banners"][mode]!)
         note.font = .menuFont(ofSize: 11)
         note.textColor = .secondaryLabelColor
-        note.frame = NSRect(x: 20, y: 2, width: 200, height: 15)
-        view.addSubview(buttons)
-        view.addSubview(note)
-        let entry = NSMenuItem()
-        entry.view = view
-        return entry
+        return rowItem(height: 50, [(buttons, 22, 24), (note, 4, 15)])
     }
 
     @objc func modeClicked(_ sender: NSSegmentedControl) {
@@ -366,16 +376,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func volumeItem() -> NSMenuItem {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 48))
-        volumeLabel.frame = NSRect(x: 20, y: 26, width: 200, height: 16)
-        volumeLabel.font = .menuFont(ofSize: 12)
+        volumeLabel.font = .menuFont(ofSize: 11)
         volumeLabel.textColor = .secondaryLabelColor
-        slider.frame = NSRect(x: 18, y: 4, width: 204, height: 22)
-        view.addSubview(volumeLabel)
-        view.addSubview(slider)
-        let entry = NSMenuItem()
-        entry.view = view
-        return entry
+        return rowItem(height: 44, [(volumeLabel, 24, 15), (slider, 2, 22)])
     }
 
     // Same LaunchAgent the installer writes; RunAtLoad starts PeonBar on every login
