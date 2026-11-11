@@ -183,17 +183,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     var paused: Bool { FileManager.default.fileExists(atPath: pausedPath) }
 
+    // Three states. peon-ping's pause silences sounds and banners alike, so "sounds off, banners on"
+    // is volume 0, with the old volume kept here to bring back.
+    enum Mode { case on, mute, off }
+    var mode: Mode {
+        if paused { return .off }
+        return ((readConfig()["volume"] as? Double) ?? 0.5) <= 0 ? .mute : .on
+    }
+    var savedVolume: Double {
+        get { defaults.object(forKey: "volumeBeforeMute") as? Double ?? 0.5 }
+        set { defaults.set(newValue, forKey: "volumeBeforeMute") }
+    }
+
     // peon-ping's own icon from the local install (this repo ships no game art); speaker symbols if it is missing
     lazy var peonIcon: NSImage? = NSImage(contentsOfFile: "\(peonDir)/docs/peon-icon.png")
-    lazy var iconOn: NSImage? = statusImage(muted: false)
-    lazy var iconMuted: NSImage? = statusImage(muted: true)
+    lazy var iconOn: NSImage? = statusImage(.on)
+    lazy var iconMuted: NSImage? = statusImage(.mute)
+    lazy var iconOff: NSImage? = statusImage(.off)
 
-    func statusImage(muted: Bool) -> NSImage? {
+    // Mute: faded icon. Off: faded with a red slash.
+    func statusImage(_ mode: Mode) -> NSImage? {
         guard let base = peonIcon else { return nil }
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
             NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).addClip()
-            base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: muted ? 0.35 : 1)
-            if muted {
+            base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: mode == .on ? 1 : 0.35)
+            if mode == .off {
                 let slash = NSBezierPath()
                 slash.move(to: NSPoint(x: 2, y: 2))
                 slash.line(to: NSPoint(x: rect.maxX - 2, y: rect.maxY - 2))
@@ -209,14 +223,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func refreshIcon() {
-        var image = paused ? iconMuted : iconOn
+        let mode = self.mode
+        var image = [Mode.on: iconOn, .mute: iconMuted, .off: iconOff][mode] ?? nil
         if image == nil {
-            image = NSImage(systemSymbolName: paused ? "speaker.slash.fill" : "speaker.wave.2.fill", accessibilityDescription: nil)
+            let symbol = [Mode.on: "speaker.wave.2.fill", .mute: "speaker.slash.fill", .off: "bell.slash.fill"][mode]!
+            image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             image?.isTemplate = true
         }
-        image?.accessibilityDescription = paused ? "peon-ping muted" : "peon-ping on"
+        image?.accessibilityDescription = [Mode.on: "peon-ping on", .mute: "peon-ping muted", .off: "peon-ping off"][mode]
         item.button?.image = image
-        item.button?.toolTip = paused ? (muteUntil().map { "peon-ping: muted until \(Self.untilText($0))" } ?? "peon-ping: muted") : "peon-ping: sounds on"
+        switch mode {
+        case .on: item.button?.toolTip = "peon-ping: sounds and banners on"
+        case .mute: item.button?.toolTip = "peon-ping: muted, banners still show"
+        case .off: item.button?.toolTip = muteUntil().map { "peon-ping: off until \(Self.untilText($0))" } ?? "peon-ping: off, no sounds or banners"
+        }
     }
 
     // Rebuilt every time the menu opens, so it always shows the current config
@@ -232,17 +252,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(header)
         menu.addItem(.separator())
 
-        let toggle = NSMenuItem(title: "Sounds on", action: #selector(toggleSounds), keyEquivalent: "")
-        toggle.target = self
-        toggle.state = paused ? .off : .on
-        menu.addItem(toggle)
+        let mode = self.mode
+        menu.addItem(modeItem(mode))
 
-        if paused, let until = muteUntil() {
-            let note = NSMenuItem(title: "Muted until \(Self.untilText(until))", action: nil, keyEquivalent: "")
+        if mode == .off, let until = muteUntil() {
+            let note = NSMenuItem(title: "Off until \(Self.untilText(until))", action: nil, keyEquivalent: "")
             note.isEnabled = false
             menu.addItem(note)
-        } else if !paused {
-            let muteFor = NSMenuItem(title: "Mute for", action: nil, keyEquivalent: "")
+        } else if mode != .off {
+            let muteFor = NSMenuItem(title: "Turn off for", action: nil, keyEquivalent: "")
             let sub = NSMenu()
             for (title, seconds) in [("30 minutes", 1800), ("1 hour", 3600), ("2 hours", 7200), ("Until tomorrow morning", -1)] {
                 let entry = NSMenuItem(title: title, action: #selector(muteFor(_:)), keyEquivalent: "")
@@ -318,6 +336,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(quit)
     }
 
+    // Two toggle buttons: Mute (sounds off, banners stay) and Off (both off). Clicking the lit one turns everything back on.
+    func modeItem(_ mode: Mode) -> NSMenuItem {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 50))
+        let buttons = NSSegmentedControl(labels: ["Mute", "Off"], trackingMode: .selectAny, target: self, action: #selector(modeClicked(_:)))
+        buttons.setImage(NSImage(systemSymbolName: "speaker.slash.fill", accessibilityDescription: nil), forSegment: 0)
+        buttons.setImage(NSImage(systemSymbolName: "bell.slash.fill", accessibilityDescription: nil), forSegment: 1)
+        buttons.setToolTip("Mute sounds; banners still show", forSegment: 0)
+        buttons.setToolTip("Turn off sounds and banners", forSegment: 1)
+        buttons.setSelected(mode == .mute, forSegment: 0)
+        buttons.setSelected(mode == .off, forSegment: 1)
+        buttons.segmentDistribution = .fillEqually
+        buttons.frame = NSRect(x: 18, y: 20, width: 204, height: 24)
+        let note = NSTextField(labelWithString: [Mode.on: "Sounds and banners on", .mute: "Sounds muted, banners still show", .off: "No sounds or banners"][mode]!)
+        note.font = .menuFont(ofSize: 11)
+        note.textColor = .secondaryLabelColor
+        note.frame = NSRect(x: 20, y: 2, width: 200, height: 15)
+        view.addSubview(buttons)
+        view.addSubview(note)
+        let entry = NSMenuItem()
+        entry.view = view
+        return entry
+    }
+
+    @objc func modeClicked(_ sender: NSSegmentedControl) {
+        // The segment whose state flipped is the one clicked
+        let current = mode
+        let clicked: Mode = sender.isSelected(forSegment: 0) != (current == .mute) ? .mute : .off
+        setMode(current == clicked ? .on : clicked)
+        menu.cancelTracking()
+    }
+
     func volumeItem() -> NSMenuItem {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 48))
         volumeLabel.frame = NSRect(x: 20, y: 26, width: 200, height: 16)
@@ -360,10 +409,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc func toggleSounds() {
-        // Any manual change ends a timed mute
+    func setMode(_ target: Mode, until: Date? = nil) {
+        // Any manual change ends a timed mute; a timed one writes its end time
         try? FileManager.default.removeItem(atPath: muteUntilPath)
-        runInBackground([paused ? "resume" : "pause"]) { [weak self] in self?.refreshIcon() }
+        if let until = until {
+            try? String(Int(until.timeIntervalSince1970)).write(toFile: muteUntilPath, atomically: true, encoding: .utf8)
+        }
+        let current = mode
+        guard target != current else { return }
+        var steps: [[String]] = []
+        if current == .off { steps.append(["resume"]) }
+        if current == .mute {
+            // Back to the volume from before Mute (0.5 if the slider was simply dragged to 0)
+            let v = savedVolume > 0 ? savedVolume : 0.5
+            steps.append(["volume", String(format: "%.2f", v)])
+        }
+        if target == .mute {
+            savedVolume = (readConfig()["volume"] as? Double) ?? 0.5
+            steps.append(["volume", "0"])
+            stopCurrentSound()
+        }
+        if target == .off { steps.append(["pause"]) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            for args in steps { runPeon(args) }
+            DispatchQueue.main.async { [weak self] in self?.refreshIcon() }
+        }
     }
 
     @objc func muteFor(_ sender: NSMenuItem) {
@@ -374,8 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let tomorrow = cal.date(byAdding: .day, value: 1, to: Date())!
             end = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
         }
-        try? String(Int(end.timeIntervalSince1970)).write(toFile: muteUntilPath, atomically: true, encoding: .utf8)
-        runInBackground(["pause"]) { [weak self] in self?.refreshIcon() }
+        setMode(.off, until: end)
     }
 
     func expireTimedMute() {
@@ -504,10 +573,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyHotkey()
     }
 
+    // The hotkey switches between on and off (no sounds, no banners), as before
     func hotkeyPressed() {
-        let willMute = !paused
-        toggleSounds()
-        showHUD(willMute ? "Sounds off" : "Sounds on")
+        let willTurnOff = mode == .on
+        setMode(willTurnOff ? .off : .on)
+        showHUD(willTurnOff ? "Sounds off" : "Sounds on")
     }
 
     // A short "Sounds off / on" bubble near the bottom of the screen, like the system volume HUD

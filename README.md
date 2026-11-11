@@ -85,13 +85,14 @@ Everything stays on your Mac: the editor listens on `127.0.0.1` only and has zer
 
 A tiny native menu-bar app that comes with the installer (macOS 12+, Apple silicon and Intel).
 
-- **Sounds on/off** — the peon dims and gets a red slash when muted
+- **Mute** and **Off** buttons — Mute silences the sounds but banners still show (the peon dims); Off stops both
+  (the peon dims and gets a red slash). Click the lit button again to turn everything back on
 - **Volume** slider that plays a sample when you let go
 - **Default pack**, **Open pack editor…**, **Start at login**
 - **Check for Updates…** — one click, PeonBar restarts on the new version; it also checks once a day
 - **Stops the sound when you close a banner**, so a long line doesn't keep talking
-- **Mute for…** 30 min, 1 hour, 2 hours or until tomorrow morning — sounds come back on their own
-- **Mute hotkey** ⌃⌥⌘M anywhere (or ⌥⇧⌘M, or off), with a short on-screen "Sounds off / on"
+- **Turn off for…** 30 min, 1 hour, 2 hours or until tomorrow morning — sounds and banners come back on their own
+- **Mute hotkey** ⌃⌥⌘M anywhere (or ⌥⇧⌘M, or off) switches between on and Off, with a short on-screen "Sounds off / on"
 
 It uses peon-ping's own icon from your install — this repo ships no game artwork.
 
@@ -166,6 +167,8 @@ file gets a `sha256` like registry packs.
   adds the pack as one of your own.
 - **Timed mutes** are peon-ping's normal pause plus `.editor-mute-until`; PeonBar and the editor turn sounds back on
   when the time is up.
+- **PeonBar's Mute** is volume 0 (peon-ping's pause also stops banners, and it has no sound-only switch); PeonBar
+  remembers the volume from before and puts it back.
 </details>
 
 <details>
