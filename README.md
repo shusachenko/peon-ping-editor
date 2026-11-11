@@ -39,7 +39,7 @@ the menu bar and starts with every login. Open the editor from PeonBar → **Ope
 
 <table>
 <tr><td><b>Needs</b></td><td><a href="https://github.com/PeonPing/peon-ping#install">peon-ping</a> and Node.js 18+. The installer tells you if either is missing.</td></tr>
-<tr><td><b>Update</b></td><td>PeonBar → <b>Check for Updates…</b>, or run the install command again.</td></tr>
+<tr><td><b>Update</b></td><td>PeonBar → Settings → <b>Check for Updates…</b>, or run the install command again.</td></tr>
 <tr><td><b>Remove</b></td><td><code>bash ~/.peon-editor/app/uninstall.sh</code> — peon-ping, its settings and your packs stay.</td></tr>
 </table>
 
@@ -87,12 +87,13 @@ A tiny native menu-bar app that comes with the installer (macOS 12+, Apple silic
 
 - **Mute** and **Off** buttons — Mute silences the sounds but banners still show (the peon dims); Off stops both
   (the peon dims and gets a red slash). Click the lit button again to turn everything back on
-- **Volume** slider that plays a sample when you let go
-- **Default pack**, **Open pack editor…**, **Start at login**
-- **Check for Updates…** — one click, PeonBar restarts on the new version; it also checks once a day
-- **Stops the sound when you close a banner**, so a long line doesn't keep talking
 - **Turn off for…** 30 min, 1 hour, 2 hours or until tomorrow morning — sounds and banners come back on their own
-- **Mute hotkey** ⌃⌥⌘M anywhere (or ⌥⇧⌘M, or off) switches between on and Off, with a short on-screen "Sounds off / on"
+- **Volume** slider that plays a sample when you let go
+- **Open pack editor…** — packs are picked there
+- **Stops the sound when you close a banner**, so a long line doesn't keep talking
+- **Settings** — on/off hotkey ⌃⌥⌘M anywhere (or ⌥⇧⌘M, or none) with a short on-screen "Sounds off / on",
+  Start at login, Check for Updates… (PeonBar restarts on the new version; it also checks once a day and shows
+  **Update to …** in the menu when there is one)
 
 It uses peon-ping's own icon from your install — this repo ships no game artwork.
 

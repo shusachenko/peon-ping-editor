@@ -278,35 +278,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(volumeItem())
 
         menu.addItem(.separator())
-        let packsItem = NSMenuItem(title: "Default pack", action: nil, keyEquivalent: "")
-        let packsMenu = NSMenu()
-        for pack in packs {
-            let entry = NSMenuItem(title: pack.displayName, action: #selector(usePack(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.representedObject = pack.name
-            entry.state = pack.name == defaultPack ? .on : .off
-            packsMenu.addItem(entry)
-        }
-        packsItem.submenu = packsMenu
-        menu.addItem(packsItem)
-
         let editor = NSMenuItem(title: "Open pack editor…", action: #selector(openEditor), keyEquivalent: "")
         editor.target = self
         menu.addItem(editor)
 
-        let update: NSMenuItem
+        // Shown on the top level only while there is something to say
         if updating {
-            update = NSMenuItem(title: "Updating…", action: nil, keyEquivalent: "")
+            let update = NSMenuItem(title: "Updating…", action: nil, keyEquivalent: "")
             update.isEnabled = false
+            menu.addItem(update)
         } else if let latest = availableVersion {
-            update = NSMenuItem(title: "Update to \(latest)…", action: #selector(checkForUpdates), keyEquivalent: "")
-        } else {
-            update = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+            let update = NSMenuItem(title: "Update to \(latest)…", action: #selector(checkForUpdates), keyEquivalent: "")
+            update.target = self
+            menu.addItem(update)
         }
-        update.target = self
-        menu.addItem(update)
 
-        let hk = NSMenuItem(title: "Mute hotkey", action: nil, keyEquivalent: "")
+        // Things you set once live in a submenu, so the menu stays short
+        let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        let settingsMenu = NSMenu()
+
+        let hk = NSMenuItem(title: "On/off hotkey", action: nil, keyEquivalent: "")
         let hkMenu = NSMenu()
         for option in hotkeys {
             let entry = NSMenuItem(title: option.title + (option.id == hotkeyID && !hotkeyRegistered ? "  (used by another app)" : ""), action: #selector(pickHotkey(_:)), keyEquivalent: "")
@@ -321,17 +312,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         off.state = hotkeyID == "off" ? .on : .off
         hkMenu.addItem(off)
         hk.submenu = hkMenu
-        menu.addItem(hk)
+        settingsMenu.addItem(hk)
 
         let login = NSMenuItem(title: "Start at login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
         login.state = FileManager.default.fileExists(atPath: agentPath) ? .on : .off
-        menu.addItem(login)
+        settingsMenu.addItem(login)
 
-        menu.addItem(.separator())
+        settingsMenu.addItem(.separator())
+        let check = NSMenuItem(title: "Check for Updates…", action: updating ? nil : #selector(checkForUpdates), keyEquivalent: "")
+        check.target = self
+        settingsMenu.addItem(check)
         let version = NSMenuItem(title: "peon-ping editor \(installedVersion())", action: nil, keyEquivalent: "")
         version.isEnabled = false
-        menu.addItem(version)
+        settingsMenu.addItem(version)
+        settings.submenu = settingsMenu
+        menu.addItem(settings)
+
+        menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit PeonBar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
     }
@@ -495,10 +493,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         preview = sound
     }
 
-    @objc func usePack(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String else { return }
-        runInBackground(["packs", "use", name])
-    }
 
     // The installer writes this launcher; it finds node (Homebrew, nvm, volta, …) on its own
     var launcher: String {
